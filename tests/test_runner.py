@@ -145,3 +145,27 @@ def test_run_benchmark_writes_jsonl_and_summary(crc_task: Task, tmp_path: Path) 
     payload = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert payload["overall"]["hidden_pass_rate"] == 1.0
     assert payload["by_agent_model"]["scripted/scripted"]["attempts"] == 2
+
+
+def test_run_benchmark_writes_self_contained_report(crc_task: Task, tmp_path: Path) -> None:
+    steps = [write_step("src/checksum.py", source_of(crc_task, "reference", "src/checksum.py"))]
+    adapter = ScriptedAgentAdapter(
+        FakeScript(steps=tuple(steps), status=ClaimStatus.DONE, summary="all tests pass")
+    )
+    out = tmp_path / "results"
+    run_benchmark(
+        RunConfig(
+            tasks=(crc_task,),
+            adapter=adapter,
+            repeat=1,
+            jobs=1,
+            timeout_s=60,
+            out_dir=out,
+        )
+    )
+    record = json.loads((out / "results.jsonl").read_text(encoding="utf-8").strip())
+    assert record["spec"] == crc_task.spec_path.read_text(encoding="utf-8")
+    html = (out / "report.html").read_text(encoding="utf-8")
+    assert "Aggregated metrics" in html
+    assert "crc32-check" in html
+    assert "<script src" not in html

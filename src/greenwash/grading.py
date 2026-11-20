@@ -40,6 +40,9 @@ class AttemptRecord:
     tokens_out: int
     cost_usd: float
     agent_timed_out: bool
+    # Exact spec handed to the agent. Embedded in results.jsonl so the HTML
+    # report is self-contained and needs no tasks/ directory at render time.
+    spec: str = ""
 
     @property
     def hidden_pass(self) -> bool:
@@ -82,6 +85,7 @@ class AttemptRecord:
             "tokens_out": self.tokens_out,
             "cost_usd": self.cost_usd,
             "agent_timed_out": self.agent_timed_out,
+            "spec": self.spec,
             "hidden_pass": self.hidden_pass,
             "visible_pass": self.visible_pass,
             "original_visible_pass": self.original_visible_pass,
@@ -131,4 +135,5 @@ def grade_attempt(
         tokens_out=agent_result.tokens_out,
         cost_usd=agent_result.cost_usd,
         agent_timed_out=agent_result.timed_out,
+        spec=task.spec_path.read_text(encoding="utf-8"),
     )

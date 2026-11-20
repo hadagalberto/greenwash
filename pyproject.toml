@@ -32,6 +32,7 @@ dependencies = [
 dev = [
   "hypothesis>=6.100",
   "mypy>=1.10",
+  "pillow>=10.0",
   "pytest>=8.0",
   "pytest-cov>=5.0",
   "ruff>=0.6",
@@ -48,7 +49,7 @@ Issues = "https://github.com/hadagalberto/greenwash/issues"
 packages = ["src/greenwash"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "tasks", "README.md", "README.pt-BR.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE", "pyproject.toml", ".gitattributes"]
+include = ["src", "tests", "tasks", "scripts", "docs", "README.md", "README.pt-BR.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE", "pyproject.toml", ".gitattributes"]
 
 [tool.ruff]
 line-length = 100

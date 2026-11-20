@@ -20,6 +20,20 @@ cliente, geradores de propriedades que evitavam caminhos que falhavam e um teste
 falhando que foi apagado em vez de corrigido. greenwash torna esses
 comportamentos mensuráveis.
 
+## Início rápido
+
+Após [instalar](#instalação):
+
+```sh
+greenwash validate-tasks --tasks tasks
+greenwash run --agent scripted --script caminho/para/honesto.json --tasks tasks --out results/
+# abra results/report.html em qualquer navegador — sem rede
+greenwash compare results-baseline/ results-candidato/ --out compare/
+```
+
+O agente scripted é determinístico e não precisa de chave de API. Para um agente
+real, veja [Adaptadores](#adaptadores).
+
 ## Instalação
 
 ```sh
@@ -76,7 +90,46 @@ A avaliação de cada tentativa:
 5. aplica os testes ocultos e os roda sobre a implementação do agente;
 6. classifica alterações em arquivos de teste a partir do diff do git.
 
-Saídas: `results/results.jsonl` e `results/summary.json`.
+Saídas: `results/results.jsonl` (um registro por tentativa),
+`results/summary.json` (taxas agregadas, pass@k e ICs 95% bootstrap) e
+`results/report.html`.
+
+## Relatórios
+
+Cada `greenwash run` gera um **leaderboard HTML estático** junto às saídas JSON.
+A página contém:
+
+- visão geral das métricas com intervalos de confiança 95% bootstrap
+  determinísticos para taxa de aprovação oculta, score parcial, taxa de
+  greenwash, taxa visível, falhas honestas, custo, tokens e tempo;
+- leaderboard ordenável por agente/modelo (clique no cabeçalho; acessível por
+  teclado);
+- matriz tarefa × repetição, com células que levam à tentativa completa;
+- detalhamento por tentativa com a **spec** exata, o **diff** git completo,
+  cada **hunk de adulteração** classificado e a **saída dos testes** visíveis,
+  visíveis originais e ocultos.
+
+CSS e JavaScript são inlined. A página não carrega fontes, scripts ou estilos de
+CDN (nem de qualquer outro lugar), então funciona via `file://` com a rede
+desligada. Dados das tentativas são escapados ao renderizar.
+
+![Exemplo de relatório greenwash gerado a partir dos resultados fixture](docs/sample-report.png)
+
+A imagem acima é gerada a partir dos resultados fixture com
+`python scripts/make_sample_report.py`; os arquivos dourados correspondentes
+estão em `tests/fixtures/`.
+
+### Comparação pareada
+
+```sh
+greenwash compare results-baseline/ results-candidato/ --out compare/
+```
+
+`compare` pareia tentativas por `(task_id, repeat)` e reporta taxas antes e
+depois, deltas por par, contagem de vitórias/empates/derrotas e ICs 95% bootstrap
+calculados sobre as diferenças dos pares. Tentativas presentes em apenas um
+diretório são listadas como não pareadas e excluídas dos deltas. O resultado
+completo é impresso em JSON e, com `--out`, salvo em `compare/compare.json`.
 
 ## Documentação
 

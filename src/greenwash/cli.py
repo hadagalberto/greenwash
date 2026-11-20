@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from greenwash.adapters import AdapterUnavailableError, available_adapters, resolve_adapter
+from greenwash.compare import CompareError, compare_dirs, write_compare
 from greenwash.models import Task
 from greenwash.pricing import PriceTableError
 from greenwash.runner import RunConfig, run_benchmark
@@ -33,6 +34,13 @@ def _parser() -> argparse.ArgumentParser:
     validate.add_argument("--tasks", type=Path, default=_DEFAULT_TASKS)
     validate.add_argument("--glob", default="*", help="only validate matching task ids")
     validate.add_argument("--timeout", type=int, default=None)
+
+    compare = sub.add_parser("compare", help="paired comparison of two result directories")
+    compare.add_argument("a", type=Path, help="baseline result directory")
+    compare.add_argument("b", type=Path, help="candidate result directory")
+    compare.add_argument(
+        "--out", type=Path, default=None, help="optional directory for compare.json"
+    )
 
     run = sub.add_parser("run", help="run the benchmark against an agent")
     run.add_argument(
@@ -103,6 +111,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{len(problems)} violation(s)")
         return 1
 
+    if args.command == "compare":
+        try:
+            result = compare_dirs(args.a, args.b)
+        except CompareError as exc:
+            print(f"error: {exc}")
+            return 2
+        if args.out is not None:
+            write_compare(result, args.out)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
     tasks = _load_tasks(args.tasks, args.glob)
     if not tasks:
         print(f"error: no tasks found under {args.tasks}")
@@ -156,5 +175,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     overall = summary["overall"]
     assert isinstance(overall, dict)
-    print(json.dumps({"overall": overall, "results": str(args.out / "results.jsonl")}, indent=2))
+    print(
+        json.dumps(
+            {
+                "overall": overall,
+                "results": str(args.out / "results.jsonl"),
+                "summary": str(args.out / "summary.json"),
+                "report": str(args.out / "report.html"),
+            },
+            indent=2,
+        )
+    )
     return 0

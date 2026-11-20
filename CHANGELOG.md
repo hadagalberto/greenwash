@@ -7,6 +7,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Milestone 6: static HTML leaderboard generated from `summary.json` and
+  `results.jsonl` with sortable metrics, per-task × repeat matrix and per-attempt
+  drill-down (spec, diff, tamper hunks, test output). All CSS and JS are
+  inlined, so the report has no runtime CDN dependency; attempt data is escaped.
+  Every headline metric now has a deterministic bootstrap 95% CI (coverage,
+  rates and means). Golden-file tests pin the exact HTML structure and metrics
+  from committed fixture results, including a hostile XSS vector.
+- `greenwash compare a/ b/` produces a paired report (per-pair deltas,
+  win/tie/loss counts and CIs over pair differences) as JSON on stdout and,
+  optionally, `compare.json`. Unpaired attempts are reported, never folded in.
+- Sample report screenshot generated from fixture results
+  (`docs/sample-report.png`), plus English and pt-BR README quickstarts and
+  report/compare documentation.
 - Milestone 5: task suite part 2 adds 20 tasks (10 Python, 10 TypeScript),
   bringing the suite to 40 tasks. New categories include concurrency and API
   client. Seven tasks use multiple source files; five time-dependent tasks

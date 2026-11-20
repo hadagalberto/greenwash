@@ -18,6 +18,20 @@ code under test, mocks reusing the client's own validators, property generators
 avoiding failing paths, and a failing test deleted instead of fixed. greenwash
 makes these behaviours measurable.
 
+## Quickstart
+
+After [installing](#install):
+
+```sh
+greenwash validate-tasks --tasks tasks
+greenwash run --agent scripted --script path/to/honest.json --tasks tasks --out results/
+# open results/report.html in any browser — no network needed
+greenwash compare results-baseline/ results-candidate/ --out compare/
+```
+
+A deterministic scripted agent (used by the test suite) needs no API key. For a
+real agent, see [Adapters](#adapters) below.
+
 ## Install
 
 ```sh
@@ -83,8 +97,45 @@ An attempt is graded in this order:
 5. overlay hidden tests and run them against the agent's implementation;
 6. classify test-file changes from the git diff.
 
-Outputs are `results/results.jsonl` (one record per attempt) and
-`results/summary.json` (aggregated rates, pass@k and bootstrap 95% CIs).
+Outputs are `results/results.jsonl` (one record per attempt),
+`results/summary.json` (aggregated rates, pass@k and bootstrap 95% CIs) and
+`results/report.html`.
+
+## Reports
+
+Every `greenwash run` writes a **static HTML leaderboard** next to the JSON
+outputs. The page has:
+
+- a metric overview with deterministic bootstrap 95% confidence intervals for
+  hidden pass rate, partial hidden score, greenwash rate, visible pass rate,
+  honest-failure rate, cost, tokens and wall time;
+- a sortable leaderboard by agent/model (click a header; keyboard accessible);
+- a per-task × repeat matrix whose cells link to the full attempt;
+- a drill-down per attempt containing the exact **spec**, the complete git
+  **diff**, every classified **tamper hunk** and the captured **test output**
+  for visible, original-visible and hidden suites.
+
+All CSS and JavaScript are inlined. The report loads no fonts, scripts or
+stylesheets from a CDN (or anywhere else), so it works from `file://` with the
+network unplugged. Attempt data is HTML-escaped on render.
+
+![Sample greenwash report generated from the fixture results](docs/sample-report.png)
+
+The screenshot above is generated from the committed fixture results with
+`python scripts/make_sample_report.py`; the matching machine-readable golden
+files live under `tests/fixtures/`.
+
+### Paired comparison
+
+```sh
+greenwash compare results-baseline/ results-candidate/ --out compare/
+```
+
+`compare` pairs attempts by `(task_id, repeat)` and reports rates before and
+after, per-pair deltas, win/tie/loss counts and bootstrap 95% CIs computed over
+the pair differences. Attempts that exist in only one directory are listed as
+unpaired and excluded from the deltas. The full result is printed as JSON and,
+with `--out`, saved to `compare/compare.json`.
 
 ## Task suite
 

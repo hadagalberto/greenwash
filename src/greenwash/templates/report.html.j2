@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>greenwash report</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --panel: #141b31;
+  --panel-2: #1b2440;
+  --ink: #e8ecf7;
+  --muted: #9aa7c4;
+  --line: #2c3757;
+  --good: #52d39b;
+  --bad: #ff7181;
+  --warn: #ffc861;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+header { padding: 32px 24px 20px; border-bottom: 1px solid var(--line); }
+h1 { margin: 0; font-size: 30px; letter-spacing: -0.02em; }
+h2 { margin: 0 0 14px; font-size: 20px; }
+h3 { margin: 18px 0 6px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.subtitle { margin: 6px 0 0; color: var(--muted); }
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+section { margin-bottom: 34px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.card .label { color: var(--muted); font-size: 13px; }
+.card .value { font-size: 27px; font-weight: 700; margin: 4px 0 2px; }
+.card .ci { font-size: 12px; color: var(--warn); }
+.card .note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.inline-list { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); }
+.inline-list strong { color: var(--ink); }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+th, td { padding: 9px 11px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { background: var(--panel-2); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; user-select: none; }
+thead th[aria-sort] { color: var(--ink); }
+tbody tr:last-child td { border-bottom: 0; }
+.matrix td { text-align: center; }
+.matrix th:first-child, .matrix td:first-child { text-align: left; }
+.cell { display: inline-block; min-width: 50px; padding: 5px 8px; border-radius: 6px; text-decoration: none; font-weight: 700; }
+.cell.pass { background: rgba(82, 211, 155, 0.16); color: var(--good); }
+.cell.fail { background: rgba(255, 113, 129, 0.16); color: var(--bad); }
+.cell .markers { font-size: 10px; color: var(--warn); display: block; }
+details.attempt { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; padding: 0 16px; }
+details.attempt > summary { padding: 12px 0; cursor: pointer; font-weight: 600; }
+.badges { float: right; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
+.badge { margin-left: 6px; padding: 2px 7px; border-radius: 20px; border: 1px solid var(--line); color: var(--muted); }
+.badge.greenwash { color: var(--warn); border-color: var(--warn); }
+.badge.tamper { color: var(--bad); border-color: var(--bad); }
+.attempt-body { border-top: 1px solid var(--line); padding-bottom: 18px; }
+pre { background: #090d1a; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; max-height: 320px; }
+.tamper-hunk { margin: 8px 0 14px; border-left: 3px solid var(--bad); padding-left: 10px; }
+.tamper-hunk .where { color: var(--muted); font-size: 12px; }
+details.output { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; padding: 6px 12px; }
+details.output summary { cursor: pointer; }
+footer { border-top: 1px solid var(--line); padding: 18px 24px 30px; color: var(--muted); font-size: 12px; }
+@media (max-width: 720px) { main { padding: 14px; } table { font-size: 12px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>greenwash report</h1>
+  <p class="subtitle">{{ task_count }} tasks · {{ attempt_count }} attempts · offline static report</p>
+</header>
+<main>
+<section id="overall">
+  <h2>Aggregated metrics</h2>
+  <div class="cards">
+  {%- for card in cards %}
+    <article class="card">
+      <div class="label">{{ card.label }}</div>
+      <div class="value">{{ card.value }}</div>
+      <div class="ci">95% CI {{ card.ci }}</div>
+      <div class="note">{{ card.note }}</div>
+    </article>
+  {%- endfor %}
+  </div>
+  <h3>Derived metrics</h3>
+  <p class="inline-list">
+  {%- for item in pass_at_k %}<span>pass@{{ item.k }} <strong>{{ item.value }}</strong></span>{% endfor %}
+  {%- for item in tamper_rows %}<span>tamper:{{ item.kind }} <strong>{{ item.rate }}</strong></span>{% endfor %}
+  </p>
+</section>
+
+<section id="leaderboard">
+  <h2>Leaderboard</h2>
+  <p class="subtitle">Click a column header to sort. Sort state stays inside this page.</p>
+  <table id="leaderboard-table" class="sortable">
+    <thead><tr>
+      <th data-sort="string" scope="col">Agent / model</th>
+      <th data-sort="number" scope="col">Attempts</th>
+      <th data-sort="number" scope="col">Hidden pass</th>
+      <th data-sort="number" scope="col">Partial</th>
+      <th data-sort="number" scope="col">Visible</th>
+      <th data-sort="number" scope="col">Greenwash</th>
+      <th data-sort="number" scope="col">Tamper/attempt</th>
+      <th data-sort="number" scope="col">Cost</th>
+      <th data-sort="number" scope="col">Tokens</th>
+      <th data-sort="number" scope="col">pass@1</th>
+    </tr></thead>
+    <tbody>
+    {%- for row in agents %}
+      <tr>
+        <td data-value="{{ row.name }}">{{ row.name }}</td>
+        <td data-value="{{ row.attempts }}">{{ row.attempts }}</td>
+        <td data-value="{{ row.hidden_value }}">{{ row.hidden }}</td>
+        <td data-value="{{ row.partial_value }}">{{ row.partial }}</td>
+        <td data-value="{{ row.visible_value }}">{{ row.visible }}</td>
+        <td data-value="{{ row.greenwash_value }}">{{ row.greenwash }}</td>
+        <td data-value="{{ row.tamper_value }}">{{ row.tamper }}</td>
+        <td data-value="{{ row.cost_value }}">{{ row.cost }}</td>
+        <td data-value="{{ row.tokens_value }}">{{ row.tokens }}</td>
+        <td data-value="{{ row.pass_at_1_value }}">{{ row.pass_at_1 }}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section id="matrix">
+  <h2>Per-task matrix</h2>
+  <p class="subtitle">Each cell is one attempt; click it for the full trace.</p>
+  <table id="matrix-table" class="matrix">
+    <thead><tr><th scope="col">Task</th><th scope="col">Attempts</th></tr></thead>
+    <tbody>
+    {%- for row in matrix %}
+      <tr data-task="{{ row.task_id }}">
+        <td>{{ row.task_id }}</td>
+        <td>
+        {%- for cell in row.cells %}
+          <a class="cell {{ 'pass' if cell.status == 'PASS' else 'fail' }}"
+             href="#{{ cell.id }}" data-status="{{ cell.status }}"
+             data-markers="{{ cell.markers }}" title="{{ cell.title }}">
+            {{ cell.label }} {{ cell.status }}
+            {%- if cell.markers %}<span class="markers">{{ cell.markers }}</span>{% endif %}
+          </a>
+        {%- endfor %}
+        </td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section id="attempts">
+  <h2>Attempt drill-down</h2>
+  {%- for attempt in attempts %}
+  <details class="attempt" id="{{ attempt.id }}">
+    <summary>
+      {{ attempt.task_id }} · repeat {{ attempt.repeat }} · {{ attempt.agent }}/{{ attempt.model }}
+      <span class="badges">
+        <span class="badge">{{ attempt.claim }} ({{ attempt.claim_certain }})</span>
+        <span class="badge">{{ attempt.cost }} · {{ attempt.tokens }} tok · {{ attempt.wall }}s</span>
+        {%- if attempt.greenwash %}<span class="badge greenwash">GREENWASH</span>{% endif %}
+        {%- if attempt.findings %}<span class="badge tamper">TAMPER</span>{% endif %}
+      </span>
+    </summary>
+    <div class="attempt-body">
+      <h3>Claim</h3>
+      <p>Status {{ attempt.claim }} ({{ attempt.claim_certain }}); evidence: {{ attempt.claim_evidence }}</p>
+      <h3>Spec given to the agent</h3>
+      <pre class="spec">{{ attempt.spec }}</pre>
+      <h3>Workspace diff</h3>
+      <pre class="diff">{{ attempt.diff }}</pre>
+      <h3>Tamper hunks ({{ attempt.findings|length }})</h3>
+      {%- for finding in attempt.findings %}
+      <div class="tamper-hunk">
+        <div class="where">{{ finding.kind }} · {{ finding.path }} · {{ finding.detail }}</div>
+        <pre class="hunk">{{ finding.hunk }}</pre>
+      </div>
+      {%- else %}
+      <p>No test-tampering findings for this attempt.</p>
+      {%- endfor %}
+      <h3>Test output</h3>
+      {%- for output in attempt.tests %}
+      <details class="output">
+        <summary>{{ output.name }} — {{ output.ok }} ({{ output.passed }}/{{ output.total }})</summary>
+        <pre class="stdout">{{ output.stdout }}</pre>
+        <pre class="stderr">{{ output.stderr }}</pre>
+      </details>
+      {%- endfor %}
+    </div>
+  </details>
+  {%- endfor %}
+</section>
+</main>
+<footer>
+  Generated from results.jsonl and summary.json by greenwash. No external scripts,
+  fonts or stylesheets are loaded; this page works with the network unplugged.
+</footer>
+<script>
+(function () {
+  "use strict";
+  var tables = document.querySelectorAll("table.sortable");
+  Array.prototype.forEach.call(tables, function (table) {
+    var headers = table.querySelectorAll("thead th[data-sort]");
+    Array.prototype.forEach.call(headers, function (header, index) {
+      header.tabIndex = 0;
+      header.setAttribute("aria-sort", "none");
+      header.addEventListener("click", function () {
+        var asc = header.getAttribute("data-dir") === "asc";
+        Array.prototype.forEach.call(headers, function (other) {
+          other.removeAttribute("data-dir");
+          other.setAttribute("aria-sort", "none");
+        });
+        var dir = asc ? "desc" : "asc";
+        header.setAttribute("data-dir", dir);
+        header.setAttribute("aria-sort", asc ? "descending" : "ascending");
+        var kind = header.getAttribute("data-sort");
+        var body = table.tBodies[0];
+        var rows = Array.prototype.slice.call(body.rows);
+        rows.sort(function (a, b) {
+          var leftCell = a.cells[index];
+          var rightCell = b.cells[index];
+          var left = leftCell ? (leftCell.getAttribute("data-value") || leftCell.textContent.trim()) : "";
+          var right = rightCell ? (rightCell.getAttribute("data-value") || rightCell.textContent.trim()) : "";
+          if (kind === "number") {
+            return (parseFloat(left) - parseFloat(right)) * (asc ? -1 : 1);
+          }
+          return left.localeCompare(right) * (asc ? -1 : 1);
+        });
+        rows.forEach(function (row) { body.appendChild(row); });
+      });
+      header.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          header.click();
+        }
+      });
+    });
+  });
+
+  function openFromHash() {
+    if (window.location.hash.length < 2) { return; }
+    var target = document.getElementById(window.location.hash.slice(1));
+    if (target && target.tagName === "DETAILS") { target.open = true; }
+  }
+  window.addEventListener("hashchange", openFromHash);
+  openFromHash();
+}());
+</script>
+</body>
+</html>
