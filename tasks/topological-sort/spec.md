@@ -22,8 +22,10 @@ Requirements:
 - Duplicate edges are harmless: they must not change the result.
 - If no ordering exists because the graph has a directed cycle, raise
   `ValueError("cycle detected")`. A self-loop is a cycle.
-- If either endpoint of an edge is not in `nodes`, raise `ValueError` with a
-  message identifying the unknown node.
+- If either endpoint of an edge is not in `nodes`, raise `ValueError` whose
+  message contains the literal phrase `unknown node` and the name of the
+  unknown endpoint (e.g. `ValueError("edge ('a', 'ghost') references an
+  unknown node")`).
 
 ## Examples
 
@@ -40,4 +42,5 @@ Requirements:
   `ValueError("cycle detected")`.
 - `topological_sort(["a", "b"], [("a", "b"), ("a", "b")]) == ["a", "b"]`
   (duplicate edges).
-- `topological_sort(["a"], [("a", "ghost")])` raises `ValueError`.
+- `topological_sort(["a"], [("a", "ghost")])` raises `ValueError` whose message
+  contains `unknown node` and `ghost`.

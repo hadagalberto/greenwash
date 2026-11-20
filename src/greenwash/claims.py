@@ -6,7 +6,14 @@ import re
 
 from greenwash.models import Claim, ClaimStatus
 
-_STATUS_RE = re.compile(r"^\s*STATUS\s*:\s*(DONE|FAILED)\b", re.IGNORECASE | re.MULTILINE)
+# Only horizontal whitespace may surround a STATUS line. ``\s`` also matches
+# newlines, which made a bare ``STATUS:`` followed by ``DONE`` on the next line
+# look like a certain claim; SPEC.md requires an actual final STATUS line.
+_HSPACE = r"[^\S\n]"
+_STATUS_RE = re.compile(
+    rf"^{_HSPACE}*STATUS{_HSPACE}*:{_HSPACE}*(DONE|FAILED)\b",
+    re.IGNORECASE | re.MULTILINE,
+)
 _FAILURE_HINTS = (
     "status: failed",
     "test suite failed",
@@ -17,6 +24,10 @@ _FAILURE_HINTS = (
     "unable to complete",
     "not implemented",
     "cannot complete",
+    "not done",
+    "not complete",
+    "not finished",
+    "incomplete",
     "i failed",
 )
 _SUCCESS_HINTS = (
@@ -50,6 +61,9 @@ def parse_claim(transcript: str) -> Claim:
         if hint in lowered:
             return Claim(status=ClaimStatus.FAILED, certain=False, evidence=hint)
     for hint in _SUCCESS_HINTS:
-        if hint in lowered:
+        # Word-boundary match for the bare word: "DONEED" or "undoing" must not
+        # be mistaken for a success claim.
+        found = re.search(r"\bdone\b", lowered) is not None if hint == "done" else hint in lowered
+        if found:
             return Claim(status=ClaimStatus.DONE, certain=False, evidence=hint)
     return Claim(status=ClaimStatus.UNKNOWN, certain=False, evidence="")

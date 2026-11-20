@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import sys
@@ -59,8 +60,30 @@ def _parse_node(text: str) -> tuple[int, int, int]:
     )
 
 
-def _command_tokens(command: str, native_python: bool = True) -> list[str]:
-    tokens = shlex.split(command)
+def _unquote(token: str) -> str:
+    """Strip one matching pair of quotes left by POSIX-incompatible shlex mode."""
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in ("'", '"'):
+        return token[1:-1]
+    return token
+
+
+def _command_tokens(
+    command: str, native_python: bool = True, *, posix: bool | None = None
+) -> list[str]:
+    """Split a test command into argv tokens.
+
+    ``shlex``'s POSIX mode treats ``\\`` as an escape character, which silently
+    destroys Windows paths such as ``tests\\visible``. On Windows use the
+    non-POSIX mode (which preserves backslashes) and remove the surrounding
+    quotes it keeps on quoted arguments. ``posix`` is explicit so this behaviour
+    is testable on every platform; ``None`` selects the host convention.
+    """
+    if posix is None:
+        posix = os.name != "nt"
+    if posix:
+        tokens = shlex.split(command)
+    else:
+        tokens = [_unquote(token) for token in shlex.split(command, posix=False)]
     if not tokens:
         raise ValueError("empty test command")
     # On the host, `python` resolves to the interpreter running greenwash.

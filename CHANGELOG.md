@@ -7,6 +7,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Milestone 4: hostile review of the harness and all 20 tasks. Hand-derived
+  vectors from the cited sources were compared to every hidden assertion; all
+  traps, mutants and reference-import checks were re-verified. Findings and
+  fixes are documented in `docs/REVIEW-2026-11-20.md`.
+
+### Fixed
+
+- Tamper analysis now detects literal changes in non-assert lines, single-test
+  deletions and test files renamed out of `tests/`, and no longer mislabels a
+  deleted test as a literal edit.
+- Claim parsing no longer treats a bare `STATUS:` followed by `DONE` on the next
+  line as a certain claim, nor "not done"/"DONEED" as a success.
+- Windows test commands preserve backslash paths instead of losing separators
+  to POSIX shlex escaping.
+- `csv-parse` and `topological-sort` specs now state the edge-case behaviour
+  their hidden tests assert (trailing comma; unknown-node message), so the
+  hidden suites are fair.
+
 - Milestone 3: task suite part 1 expanded to 20 tasks (10 Python, 10 TypeScript)
   across parsing, numeric, dates/time, money, security, data structures,
   algorithms and text/i18n. Each task cites official sources (RFCs, ISO/IEC
