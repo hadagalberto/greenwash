@@ -53,6 +53,11 @@ class Workspace:
         self.baseline_sha = ""
         copy_overlay(task.workspace_dir, self.path)
         git(self.path, "init", "-q")
+        # Prompt files are created inside the workspace so docker mounts expose
+        # them; they are transient and must never appear in the graded diff.
+        info_dir = self.path / ".git" / "info"
+        info_dir.mkdir(parents=True, exist_ok=True)
+        (info_dir / "exclude").write_text(".greenwash-prompt-*.md\n", encoding="utf-8")
         git(self.path, "add", "-A")
         git(self.path, "commit", "-q", "-m", "baseline")
         self.baseline_sha = git(self.path, "rev-parse", "HEAD").strip()

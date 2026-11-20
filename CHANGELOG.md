@@ -3,6 +3,23 @@
 All notable changes to this project are documented in this file. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Built-in OpenAI-compatible agent loop with `read_file`, `write_file`,
+  `list_dir` and `run_command` tools (timeout, output truncation, step limit)
+  and token/cost accounting from a versioned price table (`prices.json`,
+  transcribed from the official OpenAI pricing page).
+- `opencode`, `claude-code`, `aider` and `codex` adapters with documented
+  non-interactive invocations, JSON/JSONL transcript and usage extraction, and
+  availability detection; generic `command` adapter now honours the sandbox.
+- `--sandbox docker` (with `--sandbox-image`) runs agents and test commands in
+  a container with the workspace mounted at `/work`; host execution warns.
+- Unit tests for every adapter using fake executables and a loopback-only fake
+  OpenAI-compatible HTTP server, plus sandbox and price-table tests. All CLI
+  flags (`--repeat`, `--jobs`, `--timeout`, `--tasks`) exercised end to end.
+
 ## [0.1.0] - 2026-11-20
 
 ### Added

@@ -12,6 +12,7 @@ from pathlib import Path
 from greenwash.adapters import AgentAdapter, make_prompt
 from greenwash.grading import AttemptRecord, grade_attempt
 from greenwash.models import Task
+from greenwash.sandbox import LocalSandbox, Sandbox
 from greenwash.workspace import Workspace
 
 
@@ -25,6 +26,7 @@ class RunConfig:
     jobs: int
     timeout_s: int
     out_dir: Path
+    sandbox: Sandbox = LocalSandbox()
 
 
 def _rate(numerator: int, denominator: int) -> float:
@@ -95,11 +97,15 @@ def summarize(records: list[AttemptRecord], max_repeat: int) -> dict[str, object
     }
 
 
-def _one_attempt(task: Task, adapter: AgentAdapter, repeat: int, timeout_s: int) -> AttemptRecord:
+def _one_attempt(
+    task: Task, adapter: AgentAdapter, repeat: int, timeout_s: int, sandbox: Sandbox
+) -> AttemptRecord:
     with Workspace(task) as workspace:
         prompt = make_prompt(task)
         agent_result = adapter.run(workspace.path, prompt, timeout_s)
-        return grade_attempt(task, agent_result, workspace, timeout_s, repeat=repeat)
+        return grade_attempt(
+            task, agent_result, workspace, timeout_s, repeat=repeat, sandbox=sandbox
+        )
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -118,7 +124,14 @@ def run_benchmark(config: RunConfig) -> dict[str, object]:
         for task in config.tasks:
             for repeat in range(1, config.repeat + 1):
                 futures.append(
-                    executor.submit(_one_attempt, task, config.adapter, repeat, config.timeout_s)
+                    executor.submit(
+                        _one_attempt,
+                        task,
+                        config.adapter,
+                        repeat,
+                        config.timeout_s,
+                        config.sandbox,
+                    )
                 )
         records = [future.result() for future in futures]
 

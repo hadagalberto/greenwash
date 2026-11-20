@@ -42,6 +42,38 @@ greenwash run --agent command --agent-cmd "my-agent --cwd {workdir} --prompt {pr
 greenwash run --agent scripted --script path/to/honest.json --tasks tasks --out results/
 ```
 
+### Adapters
+
+`--agent` accepts `builtin`, `opencode`, `claude-code`, `aider`, `codex`,
+`command` (with `--agent-cmd`) and `scripted` (test-only, with `--script`).
+CLI adapters use the documented non-interactive invocations (`opencode run
+--format json`, `claude -p --output-format json`, `aider --message`, `codex
+exec --json`). An adapter whose executable is missing is reported as
+unavailable — never faked. Usage and cost are read from the adapter's JSON
+output when it exposes them.
+
+`builtin` talks to any OpenAI-compatible `/chat/completions` endpoint with a
+small tool loop (`read_file`, `write_file`, `list_dir`, `run_command` with
+timeout and middle-truncation of long output). Configure it with `--model`,
+`--base-url` (default `https://api.openai.com/v1`) and `--api-key-env`
+(default `OPENAI_API_KEY`). `--max-steps` caps tool rounds (default 30). Token
+usage becomes cost via the versioned `src/greenwash/prices.json` table
+(USD per 1M tokens, transcribed from
+[OpenAI pricing](https://platform.openai.com/docs/pricing)); override it with
+`--price-table`. Unknown models are recorded with zero cost instead of a guess.
+
+### Repetition, parallelism and isolation
+
+`--repeat N` runs every task N times (pass@k is reported), `--jobs N` runs
+attempts in parallel and `--timeout` bounds each attempt (default: the task's
+time budget). `--tasks` selects the tasks directory and `--glob` filters ids.
+
+`--sandbox local` (default) runs agent and test commands on the host in a
+temporary git-initialised directory — a warning is printed because agents can
+execute arbitrary commands. `--sandbox docker --sandbox-image <image>` mounts
+the workspace at `/work` in a container and runs both the agent and all test
+commands there. The image must contain the language runtimes the task needs.
+
 An attempt is graded in this order:
 
 1. copy `workspace/` into a fresh temp directory and `git init` it;

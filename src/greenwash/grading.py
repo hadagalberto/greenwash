@@ -12,6 +12,7 @@ from greenwash.models import (
     Task,
     TestOutcome,
 )
+from greenwash.sandbox import LocalSandbox, Sandbox
 from greenwash.tamper import analyze_diff
 from greenwash.workspace import (
     Workspace,
@@ -94,19 +95,25 @@ def grade_attempt(
     workspace: Workspace,
     timeout_s: int,
     repeat: int = 1,
+    sandbox: Sandbox | None = None,
 ) -> AttemptRecord:
     """Grade an already-executed agent run inside its isolated workspace."""
-    visible = run_tests(task.test_commands.visible, workspace.path, timeout_s, task.language)
+    backend = sandbox or LocalSandbox()
+    visible = run_tests(
+        task.test_commands.visible, workspace.path, timeout_s, task.language, sandbox=backend
+    )
     diff = workspace.capture_diff()
     tamper = analyze_diff(diff)
 
     restore_visible_tests(task, workspace.path)
     original_visible = run_tests(
-        task.test_commands.visible, workspace.path, timeout_s, task.language
+        task.test_commands.visible, workspace.path, timeout_s, task.language, sandbox=backend
     )
 
     overlay_hidden_tests(task, workspace.path)
-    hidden = run_tests(task.test_commands.hidden, workspace.path, timeout_s, task.language)
+    hidden = run_tests(
+        task.test_commands.hidden, workspace.path, timeout_s, task.language, sandbox=backend
+    )
 
     return AttemptRecord(
         task_id=task.id,

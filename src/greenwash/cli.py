@@ -4,16 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from greenwash.adapters import AdapterUnavailableError, resolve_adapter
+from greenwash.adapters import AdapterUnavailableError, available_adapters, resolve_adapter
 from greenwash.models import Task
+from greenwash.pricing import PriceTableError
 from greenwash.runner import RunConfig, run_benchmark
+from greenwash.sandbox import DEFAULT_SANDBOX_IMAGE, build_sandbox
 from greenwash.tasks import TaskError, discover_tasks
 from greenwash.validate import validate_all
 
 _DEFAULT_TASKS = Path(__file__).resolve().parents[2] / "tasks"
+_DEFAULT_BASE_URL = "https://api.openai.com/v1"
+_DEFAULT_API_KEY_ENV = "OPENAI_API_KEY"
+_DEFAULT_MAX_STEPS = 30
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -29,8 +35,12 @@ def _parser() -> argparse.ArgumentParser:
     validate.add_argument("--timeout", type=int, default=None)
 
     run = sub.add_parser("run", help="run the benchmark against an agent")
-    run.add_argument("--agent", required=True, help="adapter name: command or scripted")
-    run.add_argument("--model", default="command", help="model id recorded in results")
+    run.add_argument(
+        "--agent",
+        required=True,
+        help=f"adapter: {', '.join(sorted(available_adapters()))}",
+    )
+    run.add_argument("--model", default=None, help="model id (required for the builtin adapter)")
     run.add_argument(
         "--agent-cmd", default=None, help="command template with {workdir} {prompt_file}"
     )
@@ -43,6 +53,28 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--jobs", type=int, default=1)
     run.add_argument("--timeout", type=int, default=None)
     run.add_argument("--out", type=Path, default=Path("results"))
+    run.add_argument(
+        "--base-url",
+        default=_DEFAULT_BASE_URL,
+        help="OpenAI-compatible base URL used by the builtin adapter",
+    )
+    run.add_argument(
+        "--api-key-env",
+        default=_DEFAULT_API_KEY_ENV,
+        help="environment variable holding the API key for the builtin adapter",
+    )
+    run.add_argument(
+        "--max-steps", type=int, default=_DEFAULT_MAX_STEPS, help="builtin agent tool-round limit"
+    )
+    run.add_argument(
+        "--price-table", type=Path, default=None, help="versioned JSON price table for the builtin"
+    )
+    run.add_argument("--sandbox", default="local", help="execution backend: local or docker")
+    run.add_argument(
+        "--sandbox-image",
+        default=DEFAULT_SANDBOX_IMAGE,
+        help=f"container image for --sandbox docker (default: {DEFAULT_SANDBOX_IMAGE})",
+    )
     return parser
 
 
@@ -78,9 +110,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.repeat < 1:
         print("error: --repeat must be >= 1")
         return 2
+    if args.max_steps < 1:
+        print("error: --max-steps must be >= 1")
+        return 2
     try:
-        adapter = resolve_adapter(args.agent, args.agent_cmd, args.script, model=args.model)
-    except AdapterUnavailableError as exc:
+        sandbox = build_sandbox(args.sandbox, args.sandbox_image)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
+    if sandbox.name == "local":
+        print(
+            "warning: agents run commands on the host in temporary directories; "
+            "use --sandbox docker for isolation",
+            file=sys.stderr,
+        )
+    try:
+        adapter = resolve_adapter(
+            args.agent,
+            args.agent_cmd,
+            args.script,
+            model=args.model,
+            sandbox=sandbox,
+            base_url=args.base_url,
+            api_key_env=args.api_key_env,
+            max_steps=args.max_steps,
+            price_table=args.price_table,
+        )
+    except (AdapterUnavailableError, PriceTableError) as exc:
         print(f"error: {exc}")
         return 2
 
@@ -95,6 +151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             jobs=max(1, args.jobs),
             timeout_s=timeout,
             out_dir=args.out,
+            sandbox=sandbox,
         )
     )
     overall = summary["overall"]
