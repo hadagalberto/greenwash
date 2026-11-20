@@ -1,0 +1,11 @@
+id: base64url
+title: URL-safe unpadded base64 codec
+language: typescript
+category: text/i18n
+difficulty: easy
+time_budget_s: 120
+test_commands:
+  visible: node --experimental-strip-types --test tests/visible
+  hidden: node --experimental-strip-types --test tests/hidden
+sources:
+  - https://www.rfc-editor.org/rfc/rfc4648.txt

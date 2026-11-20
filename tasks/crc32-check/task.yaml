@@ -1,0 +1,12 @@
+id: crc32-check
+title: CRC-32 check value
+language: python
+category: algorithms
+difficulty: easy
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://www.rfc-editor.org/rfc/rfc1952.txt
+  - https://www.zlib.net/crc_v3.txt
