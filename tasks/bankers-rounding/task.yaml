@@ -1,0 +1,12 @@
+id: bankers-rounding
+title: Banker's rounding (round half to even) on decimal strings
+language: python
+category: numeric
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Rounding#Round_half_to_even
+  - https://docs.python.org/3/library/decimal.html#rounding-modes

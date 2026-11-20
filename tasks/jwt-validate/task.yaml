@@ -1,0 +1,13 @@
+id: jwt-validate
+title: Verify HS256 JWTs with time claims
+language: typescript
+category: security
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: node --experimental-strip-types --test tests/visible
+  hidden: node --experimental-strip-types --test tests/hidden
+sources:
+  - https://www.rfc-editor.org/rfc/rfc7519.txt
+  - https://www.rfc-editor.org/rfc/rfc7515.txt
+  - https://www.rfc-editor.org/rfc/rfc7518.txt

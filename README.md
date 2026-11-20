@@ -89,8 +89,20 @@ Outputs are `results/results.jsonl` (one record per attempt) and
 ## Task suite
 
 Tasks live under `tasks/<id>/` with `task.yaml`, `spec.md`, `workspace/`, `hidden/`,
-`reference/`, `traps/` and `mutants/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for
-the full task authoring guide.
+`reference/`, `traps/` and `mutants/`. The suite currently ships 20 tasks — 10
+Python and 10 TypeScript — spanning parsing, numeric, dates/time, money,
+security, data structures, algorithms, text/i18n and API-client categories. Every
+task has an official-source-cited spec, correct-but-incomplete visible tests,
+hidden vectors derived by hand or from published standards, at least two traps
+and at least three mutants, all verified by `validate-tasks`.
+
+Current tasks: `base64url`, `bankers-rounding`, `business-days`, `crc32-check`,
+`csv-parse`, `ean-check`, `http-header-parse`, `iban-validation`, `interval-merge`,
+`isbn-check`, `jwt-validate`, `lru-cache`, `luhn-check`, `path-traversal`,
+`rational-arithmetic`, `semver-compare`, `semver-range`, `text-wrap-wide`,
+`topological-sort`, `varint-leb128`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full task authoring guide.
 
 ## Documentation
 

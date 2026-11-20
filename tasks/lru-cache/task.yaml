@@ -1,0 +1,11 @@
+id: lru-cache
+title: Least-Recently-Used cache with recency refresh and eviction
+language: typescript
+category: data structures
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: node --experimental-strip-types --test tests/visible
+  hidden: node --experimental-strip-types --test tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU)

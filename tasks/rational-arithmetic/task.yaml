@@ -1,0 +1,12 @@
+id: rational-arithmetic
+title: Rational arithmetic with normalized (numerator, denominator) pairs
+language: python
+category: numeric
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://docs.python.org/3/library/fractions.html
+  - https://en.wikipedia.org/wiki/Fraction_(mathematics)

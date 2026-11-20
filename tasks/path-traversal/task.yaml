@@ -1,0 +1,12 @@
+id: path-traversal
+title: Safely join an untrusted path to a base directory
+language: typescript
+category: security
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: node --experimental-strip-types --test tests/visible
+  hidden: node --experimental-strip-types --test tests/hidden
+sources:
+  - https://www.rfc-editor.org/rfc/rfc3986.txt
+  - https://owasp.org/www-community/attacks/Path_Traversal

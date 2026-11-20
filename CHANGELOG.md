@@ -7,6 +7,14 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Milestone 3: task suite part 1 expanded to 20 tasks (10 Python, 10 TypeScript)
+  across parsing, numeric, dates/time, money, security, data structures,
+  algorithms and text/i18n. Each task cites official sources (RFCs, ISO/IEC
+  standards, SemVer, Unicode and GS1) in its spec and code comments, ships
+  correct-but-incomplete visible tests, hidden vectors derived by hand or from
+  published check values, a reference overlay, at least two plausible traps and
+  at least three mutants. `greenwash validate-tasks` passes for all 20.
+
 - Built-in OpenAI-compatible agent loop with `read_file`, `write_file`,
   `list_dir` and `run_command` tools (timeout, output truncation, step limit)
   and token/cost accounting from a versioned price table (`prices.json`,

@@ -1,0 +1,11 @@
+id: topological-sort
+title: Deterministic lexicographic topological sort
+language: python
+category: algorithms
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Topological_sorting

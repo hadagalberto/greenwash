@@ -1,0 +1,12 @@
+id: iban-validation
+title: IBAN validation (ISO 13616 / MOD-97-10)
+language: python
+category: parsing
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/International_Bank_Account_Number
+  - https://www.swift.com/standards/iban

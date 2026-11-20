@@ -1,0 +1,12 @@
+id: business-days
+title: Add business days to an ISO 8601 date
+language: python
+category: dates/time
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/ISO_8601
+  - https://www.timeanddate.com/calendar/

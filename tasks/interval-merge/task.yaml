@@ -1,0 +1,11 @@
+id: interval-merge
+title: Merge half-open integer intervals
+language: python
+category: data structures
+difficulty: easy
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Interval_(mathematics)

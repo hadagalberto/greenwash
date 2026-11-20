@@ -1,0 +1,12 @@
+id: luhn-check
+title: Luhn check digit and validator
+language: python
+category: algorithms
+difficulty: easy
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Luhn_algorithm
+  - https://www.iso.org/standard/70484.html

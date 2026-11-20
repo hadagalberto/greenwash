@@ -1,0 +1,12 @@
+id: ean-check
+title: EAN-13 and UPC-A check digits
+language: python
+category: algorithms
+difficulty: easy
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/International_Article_Number
+  - https://www.gs1.org/how-calculate-check-digit-manually
