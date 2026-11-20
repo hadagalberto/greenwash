@@ -89,18 +89,25 @@ Outputs are `results/results.jsonl` (one record per attempt) and
 ## Task suite
 
 Tasks live under `tasks/<id>/` with `task.yaml`, `spec.md`, `workspace/`, `hidden/`,
-`reference/`, `traps/` and `mutants/`. The suite currently ships 20 tasks — 10
-Python and 10 TypeScript — spanning parsing, numeric, dates/time, money,
-security, data structures, algorithms, text/i18n and API-client categories. Every
-task has an official-source-cited spec, correct-but-incomplete visible tests,
-hidden vectors derived by hand or from published standards, at least two traps
-and at least three mutants, all verified by `validate-tasks`.
+`reference/`, `traps/` and `mutants/`. The suite currently ships 40 tasks — 20
+Python and 20 TypeScript — spanning parsing, numeric, dates/time, money,
+concurrency, security, data structures, algorithms, text/i18n and API-client
+categories. Every task has an official-source-cited spec, correct-but-incomplete
+visible tests, hidden vectors derived by hand or from published standards, at
+least two traps and at least three mutants, all verified by `validate-tasks`.
+Seven tasks span multiple source files, and five time-dependent tasks use an
+injected clock or scheduler so their tests are fully deterministic.
 
-Current tasks: `base64url`, `bankers-rounding`, `business-days`, `crc32-check`,
-`csv-parse`, `ean-check`, `http-header-parse`, `iban-validation`, `interval-merge`,
-`isbn-check`, `jwt-validate`, `lru-cache`, `luhn-check`, `path-traversal`,
-`rational-arithmetic`, `semver-compare`, `semver-range`, `text-wrap-wide`,
-`topological-sort`, `varint-leb128`.
+Current tasks: `bankers-rounding`, `base64url`, `business-days`, `crc32-check`,
+`csv-parse`, `cron-next`, `cursor-pagination`, `debounce-scheduler`, `diff-patch`,
+`ean-check`, `header-injection`, `http-header-parse`, `iban-validation`,
+`ini-parse`, `installment-schedule`, `interval-merge`, `isbn-check`,
+`iso-duration`, `json-patch`, `jwt-validate`, `lru-cache`, `luhn-check`,
+`money-allocation`, `path-traversal`, `rational-arithmetic`, `retry-after`,
+`retry-backoff`, `ring-buffer`, `semver-compare`, `semver-range`, `slugify`,
+`sliding-window-limiter`, `text-wrap-wide`, `token-bucket`, `topological-sort`,
+`ttl-cache`, `unicode-normalize`, `url-query-parse`, `uuid-validate`,
+`varint-leb128`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full task authoring guide.
 

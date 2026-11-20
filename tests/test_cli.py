@@ -19,9 +19,10 @@ from greenwash.models import Task
 def test_cli_validate_tasks_success(tasks_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
     code = main(["validate-tasks", "--tasks", str(tasks_dir)])
     assert code == 0
-    # Milestone 3 expanded the suite from 3 to 20 tasks; the old string was a
-    # snapshot of milestone 1, not a behavioural requirement of the CLI.
-    assert "validated 20 task(s)" in capsys.readouterr().out
+    # Milestone 3 expanded the suite from 3 to 20, and milestone 5 to 40; the
+    # old string was a snapshot of milestone 1, not a CLI requirement. The SPEC
+    # requires >= 40 tasks, so 40 is the value that must be printed here.
+    assert "validated 40 task(s)" in capsys.readouterr().out
 
 
 def test_cli_validate_tasks_failure(

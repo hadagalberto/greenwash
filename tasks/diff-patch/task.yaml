@@ -1,0 +1,11 @@
+id: diff-patch
+title: Apply unified diff hunks (multi-file)
+language: python
+category: algorithms
+difficulty: hard
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://www.gnu.org/software/diffutils/manual/html_node/Unified-Format.html

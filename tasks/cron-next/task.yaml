@@ -1,0 +1,11 @@
+id: cron-next
+title: Five-field UTC cron next-run calculator
+language: typescript
+category: dates/time
+difficulty: hard
+time_budget_s: 120
+test_commands:
+  visible: node --experimental-strip-types --test tests/visible
+  hidden: node --experimental-strip-types --test tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Cron

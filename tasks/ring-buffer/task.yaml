@@ -1,0 +1,11 @@
+id: ring-buffer
+title: Fixed-capacity ring buffer with FIFO overwrite
+language: typescript
+category: data structures
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: node --experimental-strip-types --test tests/visible
+  hidden: node --experimental-strip-types --test tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Circular_buffer

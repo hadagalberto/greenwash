@@ -158,7 +158,8 @@ def test_hidden_reference_imports_detects_violation(crc_task: Task, tmp_path: Pa
 
 def test_discover_tasks_filters_by_glob(tasks_dir: Path) -> None:
     # Milestone 3 expanded the suite from 3 fixture tasks to 20 (10 Python,
-    # 10 TypeScript); the old expected value of 3 was a snapshot of milestone 1.
-    assert len(discover_tasks(tasks_dir)) == 20
+    # 10 TypeScript) and milestone 5 to 40 (20 Python, 20 TypeScript); the old
+    # expected value of 3 was a snapshot of milestone 1. SPEC.md requires >= 40.
+    assert len(discover_tasks(tasks_dir)) == 40
     assert [task.id for task in discover_tasks(tasks_dir, "base*")] == ["base64url"]
     assert discover_tasks(tasks_dir / "missing") == ()

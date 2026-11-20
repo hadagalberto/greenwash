@@ -1,0 +1,11 @@
+id: uuid-validate
+title: RFC 4122 UUID string validation
+language: python
+category: security
+difficulty: easy
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://www.rfc-editor.org/rfc/rfc4122.txt

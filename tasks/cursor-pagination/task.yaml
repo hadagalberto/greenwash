@@ -1,0 +1,11 @@
+id: cursor-pagination
+title: Opaque pagination cursors (multi-file)
+language: python
+category: API client
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://www.rfc-editor.org/rfc/rfc4648.txt

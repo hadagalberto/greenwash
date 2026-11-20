@@ -1,0 +1,11 @@
+id: unicode-normalize
+title: Unicode canonical keys and mark stripping
+language: python
+category: text/i18n
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://docs.python.org/3/library/unicodedata.html

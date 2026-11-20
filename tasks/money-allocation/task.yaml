@@ -1,0 +1,11 @@
+id: money-allocation
+title: Allocate cents without losing any (largest remainder)
+language: python
+category: money
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Largest_remainder_method

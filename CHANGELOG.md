@@ -7,6 +7,15 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Milestone 5: task suite part 2 adds 20 tasks (10 Python, 10 TypeScript),
+  bringing the suite to 40 tasks. New categories include concurrency and API
+  client. Seven tasks use multiple source files; five time-dependent tasks
+  (`token-bucket`, `retry-backoff`, `ttl-cache`, `sliding-window-limiter`,
+  `debounce-scheduler`) take an injected clock or scheduler so tests are
+  deterministic. Specs cite the RFCs and standards whose rules they implement.
+  Every new task ships correct-but-incomplete visible tests, hand-derived
+  hidden vectors, at least two traps and at least three mutants;
+  `greenwash validate-tasks` passes for all 40.
 - Milestone 4: hostile review of the harness and all 20 tasks. Hand-derived
   vectors from the cited sources were compared to every hidden assertion; all
   traps, mutants and reference-import checks were re-verified. Findings and

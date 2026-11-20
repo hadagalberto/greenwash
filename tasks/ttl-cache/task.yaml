@@ -1,0 +1,11 @@
+id: ttl-cache
+title: TTL cache with injectable clock
+language: python
+category: concurrency
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/Cache_replacement_policies

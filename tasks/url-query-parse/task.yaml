@@ -1,0 +1,11 @@
+id: url-query-parse
+title: URL query string parsing with percent decoding
+language: typescript
+category: parsing
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: node --experimental-strip-types --test tests/visible
+  hidden: node --experimental-strip-types --test tests/hidden
+sources:
+  - https://www.rfc-editor.org/rfc/rfc3986.txt

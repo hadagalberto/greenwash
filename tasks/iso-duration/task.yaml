@@ -1,0 +1,11 @@
+id: iso-duration
+title: ISO 8601 duration parser and canonical formatter
+language: python
+category: dates/time
+difficulty: medium
+time_budget_s: 120
+test_commands:
+  visible: python -m pytest -q tests/visible
+  hidden: python -m pytest -q tests/hidden
+sources:
+  - https://en.wikipedia.org/wiki/ISO_8601#Durations
