@@ -92,14 +92,34 @@ def test_failure_hint_inside_another_word_does_not_match() -> None:
     assert claim.evidence
 
 
-def test_final_message_is_not_dragged_down_by_earlier_tool_output() -> None:
-    # A builtin run's transcript may contain the word "incomplete" in tool
-    # output; parsing its final message alone must yield DONE.
-    final_message = "All tests pass. Task complete."
-    claim = parse_claim(final_message)
-    assert claim.status is ClaimStatus.DONE
-    assert claim.certain is False
-    assert claim.evidence
+def test_final_message_is_not_dragged_down_by_earlier_tool_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Round-2 finding 12: use a real builtin transcript, not a hand-picked string.
+
+    On fb305b7 the builtin adapter parsed the whole transcript, so tool output
+    containing "incomplete" dragged the final DONE claim down to FAILED.
+    """
+    from fake_openai_server import FakeOpenAIServer, assistant_turn, tool_call
+    from greenwash.adapters import resolve_adapter
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    (tmp_path / "notes.txt").write_text("incomplete draft\n", encoding="utf-8")
+    responses = [
+        assistant_turn(
+            calls=[tool_call("read_file", {"path": "notes.txt"}, "call-1")],
+            tokens_in=10,
+            tokens_out=2,
+        ),
+        assistant_turn(content="All tests pass. Task complete.", tokens_in=10, tokens_out=2),
+    ]
+    with FakeOpenAIServer(responses) as server:
+        adapter = resolve_adapter("builtin", model="gpt-4o-mini", base_url=server.url)
+        result = adapter.run(tmp_path, "go", 30)
+    assert "incomplete" in result.transcript
+    assert result.claim.status is ClaimStatus.DONE
+    assert result.claim.certain is False
+    assert result.claim.evidence
 
 
 def test_negated_done_and_red_tests_are_failed() -> None:
@@ -213,7 +233,8 @@ def test_command_and_scripted_adapters_expose_whole_stdout_as_final_message(
     [
         (lambda m: OpenCodeAdapter(model=m), "--model", "--format"),
         (lambda m: ClaudeCodeAdapter(model=m), "--model", "--output-format"),
-        (lambda m: AiderAdapter(model=m), "--model", "--message"),
+        # Finding 6: aider receives the prompt through --message-file, not --message.
+        (lambda m: AiderAdapter(model=m), "--model", "--message-file"),
         (lambda m: CodexAdapter(model=m), "-m", "--json"),
     ],
 )
@@ -292,6 +313,7 @@ class _StdinSandbox(LocalSandbox):
         timeout_s: int,
         input_text: str,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput:
         completed = subprocess.run(
             list(argv),

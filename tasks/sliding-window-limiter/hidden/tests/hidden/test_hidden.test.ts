@@ -1,3 +1,9 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: # Sliding-window rate limiter Implement `src/limiter.ts` exporting: ...
+//     -> constructor validates all three arguments, count records nothing, expired events are
+//       pruned by count
+//
 // All vectors use a fully controlled clock.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,3 +1,9 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: ## Examples ``` sanitizeHeaderValue(' hello ') === 'hello' ...
+//     -> CR, LF and NUL are folded away, empty and space-only values trim to the empty string,
+//       header names must be tokens
+//
 // Control-character and name-token vectors derived from RFC 9110.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

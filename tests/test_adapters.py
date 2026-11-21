@@ -169,7 +169,9 @@ def test_parse_cli_output_handles_json_jsonl_and_raw_text() -> None:
             "aider",
             AiderAdapter,
             "edited files\nSTATUS: DONE\n",
-            ["--model", "model-aider", "--message", "solve it", "--yes", "--no-auto-commits"],
+            # Finding 6: the multi-line prompt goes to a transient file, never
+            # in argv (npm .cmd launchers truncate at the first newline).
+            ["--model", "model-aider", "--message-file", None, "--yes", "--no-auto-commits"],
             0,
             0,
             0.0,
@@ -179,7 +181,8 @@ def test_parse_cli_output_handles_json_jsonl_and_raw_text() -> None:
             CodexAdapter,
             '{"text":"part"}\n{"text":"STATUS: DONE","usage":'
             '{"prompt_tokens":9,"completion_tokens":4},"cost_usd":0.01}',
-            ["exec", "-m", "model-codex", "--json", "solve it"],
+            # Finding 6: codex reads the prompt from stdin via `exec -`.
+            ["exec", "-m", "model-codex", "--json", "-"],
             9,
             4,
             0.01,
@@ -221,7 +224,16 @@ def test_cli_adapters_run_fake_executables(
     )
     assert result.exit_code == 0 and result.timed_out is False
     recorded = json.loads(log.read_text(encoding="utf-8"))
-    assert recorded["argv"] == argv_tail
+    if name == "aider":
+        # Finding 6: the path is generated per run; verify the surrounding flags
+        # and that the file really contains the whole prompt.
+        argv = recorded["argv"]
+        assert argv[:3] == ["--model", "model-aider", "--message-file"]
+        assert argv[4:] == ["--yes", "--no-auto-commits"]
+        assert Path(argv[3]).name.startswith(".greenwash-prompt-")
+        assert not Path(argv[3]).exists()  # transient prompt file cleaned up
+    else:
+        assert recorded["argv"] == argv_tail
     assert recorded["cwd"] == str(work)
 
 

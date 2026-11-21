@@ -8,6 +8,7 @@ and runs the same commands there; agents never receive host paths.
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import os
 import shutil
 import signal
@@ -16,7 +17,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 CONTAINER_WORKDIR = "/work"
 _DOCKER_TIMEOUT_GRACE_S = 10
@@ -78,11 +79,112 @@ def _text(value: object) -> str:
     return str(value)
 
 
-def _kill_process_tree(pid: int) -> None:
+# Windows Job Object with KILL_ON_JOB_CLOSE. A process group is not enough:
+# a grandchild started with DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP escapes
+# it, but cannot escape a job that disallows BREAKAWAY_OK.
+_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+
+
+class _JobBasicLimitInformation(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_longlong),
+        ("PerJobUserTimeLimit", ctypes.c_longlong),
+        ("LimitFlags", ctypes.c_ulong),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_ulong),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_ulong),
+        ("SchedulingClass", ctypes.c_ulong),
+    ]
+
+
+class _JobIoCounters(ctypes.Structure):
+    _fields_ = [
+        (name, ctypes.c_ulonglong)
+        for name in (
+            "ReadOperationCount",
+            "WriteOperationCount",
+            "OtherOperationCount",
+            "ReadTransferCount",
+            "WriteTransferCount",
+            "OtherTransferCount",
+        )
+    ]
+
+
+class _JobExtendedLimitInformation(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _JobBasicLimitInformation),
+        ("IoInfo", _JobIoCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+_WIN_DLL = "WinDLL"  # indirect so POSIX type-checkers never see ctypes.WinDLL
+
+
+def _kernel32() -> Any:
+    return getattr(ctypes, _WIN_DLL)("kernel32", use_last_error=True)
+
+
+def _create_job() -> int | None:
+    """Create a kill-on-close job for the child, or None if unavailable."""
+    if os.name != "nt":
+        return None
+    kernel32 = _kernel32()
+    create = kernel32.CreateJobObjectW
+    create.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    create.restype = ctypes.c_void_p
+    handle = create(None, None)
+    if not handle:
+        return None
+    info = _JobExtendedLimitInformation()
+    info.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    set_info = kernel32.SetInformationJobObject
+    set_info.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p, ctypes.c_ulong]
+    set_info.restype = ctypes.c_int
+    if not set_info(
+        handle, _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, ctypes.byref(info), ctypes.sizeof(info)
+    ):
+        _close_job(int(handle))
+        return None
+    return int(handle)
+
+
+def _assign_job(job: int | None, proc: subprocess.Popen[str]) -> None:
+    if job is None or os.name != "nt":
+        return
+    handle = getattr(proc, "_handle", None)
+    if handle is None:
+        return
+    kernel32 = _kernel32()
+    assign = kernel32.AssignProcessToJobObject
+    assign.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    assign.restype = ctypes.c_int
+    assign(job, int(handle))
+
+
+def _close_job(job: int | None) -> None:
+    """Closing the last job handle kills every process still inside it."""
+    if job is None or os.name != "nt":
+        return
+    kernel32 = _kernel32()
+    close = kernel32.CloseHandle
+    close.argtypes = [ctypes.c_void_p]
+    close.restype = ctypes.c_int
+    close(job)
+
+
+def _kill_process_tree(pid: int, pgid: int | None = None, job: int | None = None) -> None:
     """Best-effort kill of a process and every process it spawned."""
     if os.name == "nt":
-        # taskkill /T walks the descendant tree; a new process group alone is
-        # not enough on Windows because grandchildren inherit it.
+        # taskkill /T walks the descendant tree; the job catches detached
+        # grandchildren that are not descendants any more.
         with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             subprocess.run(
                 ["taskkill", "/T", "/F", "/PID", str(pid)],
@@ -92,13 +194,14 @@ def _kill_process_tree(pid: int) -> None:
                 check=False,
             )
         return
-    # getattr keeps the POSIX-only symbols portable under Windows type checkers.
-    killpg = getattr(os, "killpg", None)
-    getpgid = getattr(os, "getpgid", None)
+    # With start_new_session=True the child is its own group leader, so its
+    # pgid equals its pid at spawn time. Calling getpgid(pid) after the leader
+    # has exited fails and leaves the whole group running (finding 5).
     sigkill = getattr(signal, "SIGKILL", None)
-    if killpg is not None and getpgid is not None and sigkill is not None:
+    killpg = getattr(os, "killpg", None)
+    if pgid is not None and sigkill is not None and killpg is not None:
         with contextlib.suppress(OSError):
-            killpg(getpgid(pid), sigkill)
+            killpg(pgid, sigkill)
 
 
 def _run_process(
@@ -108,6 +211,7 @@ def _run_process(
     env: Mapping[str, str],
     timeout: int,
     input_text: str | None = None,
+    pass_fds: Sequence[int] = (),
 ) -> CommandOutput:
     """Run one command in its own process group, enforcing a hard deadline.
 
@@ -116,6 +220,8 @@ def _run_process(
     Killing the whole group (tree on Windows) before draining the pipes makes
     the timeout real instead of best-effort.
     """
+    new_session = os.name != "nt"
+    job: int | None = None
     try:
         proc = subprocess.Popen(
             argv_or_command,
@@ -128,12 +234,20 @@ def _run_process(
             text=True,
             encoding="utf-8",
             errors="replace",
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
-            start_new_session=os.name != "nt",
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            if not new_session
+            else 0,
+            start_new_session=new_session,
+            pass_fds=tuple(pass_fds) or (),
         )
     except OSError as exc:
         # A missing executable is a failed attempt, not a harness crash.
         return CommandOutput("", str(exc), 127, False)
+    job = _create_job()
+    _assign_job(job, proc)
+    # start_new_session makes the child the leader of a new group before any
+    # Python code runs, so the id is known without a later getpgid() call.
+    pgid: int | None = proc.pid if new_session else None
 
     stdout: str = ""
     stderr: str = ""
@@ -144,17 +258,20 @@ def _run_process(
         timed_out = True
         stdout = _text(exc.stdout)
         stderr = _text(exc.stderr)
-        _kill_process_tree(proc.pid)
+        _kill_process_tree(proc.pid, pgid, job)
         try:
             stdout, stderr = proc.communicate(timeout=_PIPE_DRAIN_TIMEOUT_S)
         except subprocess.TimeoutExpired as second:
             # Last resort: kill again and keep whatever bytes we already have.
-            _kill_process_tree(proc.pid)
+            _kill_process_tree(proc.pid, pgid, job)
             stdout = stdout or _text(second.stdout)
             stderr = stderr or _text(second.stderr)
     finally:
         # No process (or descendant holding a pipe) may outlive a run.
-        _kill_process_tree(proc.pid)
+        _kill_process_tree(proc.pid, pgid, job)
+        # Closing the job handle kills anything that survived taskkill, such as
+        # a grandchild started with DETACHED_PROCESS (finding 5).
+        _close_job(job)
         if proc.stdout is not None:
             proc.stdout.close()
         if proc.stderr is not None:
@@ -182,6 +299,7 @@ class Sandbox(Protocol):
         workdir: Path,
         timeout_s: int,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput: ...
 
     def run_argv(
@@ -190,6 +308,7 @@ class Sandbox(Protocol):
         workdir: Path,
         timeout_s: int,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput: ...
 
     def run_argv_with_input(
@@ -199,6 +318,7 @@ class Sandbox(Protocol):
         timeout_s: int,
         input_text: str,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput: ...
 
     def translate_path(self, workdir: Path, path: Path) -> str:
@@ -232,8 +352,11 @@ class LocalSandbox:
         workdir: Path,
         timeout_s: int,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput:
-        return _run_process(command, True, workdir, self._env(env_extra), timeout_s)
+        return _run_process(
+            command, True, workdir, self._env(env_extra), timeout_s, pass_fds=pass_fds
+        )
 
     def run_argv(
         self,
@@ -241,8 +364,11 @@ class LocalSandbox:
         workdir: Path,
         timeout_s: int,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput:
-        return _run_process(list(argv), False, workdir, self._env(env_extra), timeout_s)
+        return _run_process(
+            list(argv), False, workdir, self._env(env_extra), timeout_s, pass_fds=pass_fds
+        )
 
     def run_argv_with_input(
         self,
@@ -251,8 +377,17 @@ class LocalSandbox:
         timeout_s: int,
         input_text: str,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput:
-        return _run_process(list(argv), False, workdir, self._env(env_extra), timeout_s, input_text)
+        return _run_process(
+            list(argv),
+            False,
+            workdir,
+            self._env(env_extra),
+            timeout_s,
+            input_text,
+            pass_fds,
+        )
 
     def translate_path(self, workdir: Path, path: Path) -> str:
         return str(path)
@@ -388,6 +523,7 @@ class DockerSandbox:
         workdir: Path,
         timeout_s: int,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput:
         name = f"greenwash-{uuid.uuid4().hex}"
         argv = [*self._prefix(workdir, env_extra, name), "sh", "-c", command]
@@ -399,6 +535,7 @@ class DockerSandbox:
         workdir: Path,
         timeout_s: int,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput:
         name = f"greenwash-{uuid.uuid4().hex}"
         return self._execute([*self._prefix(workdir, env_extra, name), *argv], timeout_s, name)
@@ -410,6 +547,7 @@ class DockerSandbox:
         timeout_s: int,
         input_text: str,
         env_extra: Mapping[str, str] | None = None,
+        pass_fds: Sequence[int] = (),
     ) -> CommandOutput:
         name = f"greenwash-{uuid.uuid4().hex}"
         prefix = self._prefix(workdir, env_extra, name, interactive=True)

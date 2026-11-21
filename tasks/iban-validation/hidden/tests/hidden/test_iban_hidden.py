@@ -1,3 +1,21 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: - The normalized string must consist only of ASCII letters `A`-`Z` ...
+#     -> test_unicode_digits_are_invalid, test_wrong_length_with_valid_check_digits_is_rejected,
+#       test_compact_and_lowercase_forms_are_accepted
+# R2: ## Supported countries and exact total lengths Only these country ...
+#     -> test_unsupported_country_is_rejected, test_compact_and_lowercase_forms_are_accepted,
+#       test_invalid_check_digit_characters_are_rejected
+# R3: `is_valid(iban)` returns `True` if and only if all normalization, ...
+#     -> test_wrong_length_with_valid_check_digits_is_rejected,
+#       test_invalid_check_digit_characters_are_rejected, test_mod97_equals_one_for_valid_ibans
+# R4: Otherwise it returns `False` (it never raises for a malformed string).
+#     -> test_compact_and_lowercase_forms_are_accepted,
+#       test_invalid_check_digit_characters_are_rejected, test_mod97_equals_one_for_valid_ibans
+# R5: ## Worked example (from the wikipedia article) ```text IBAN: GB82 ...
+#     -> test_wikipedia_worked_example, test_invalid_check_digit_characters_are_rejected,
+#       test_unsupported_country_is_rejected
+#
 """Hidden IBAN vectors.
 
 Every expected value is derived by hand from the official MOD-97-10 algorithm
@@ -64,3 +82,14 @@ def test_unsupported_country_is_rejected() -> None:
 def test_invalid_check_digit_characters_are_rejected() -> None:
     assert is_valid("GBAA WEST 1234 5698 7654 32") is False
     assert is_valid("GB82 WEST 1234 5698 7654 3!") is False
+
+
+def test_trailing_newline_is_invalid() -> None:
+    # spec.md: the normalized IBAN must consist only of ASCII letters and
+    # digits; a trailing newline is neither, even if a regex uses `$`.
+    assert is_valid("GB82WEST12345698765432\n") is False
+
+
+def test_unicode_digits_are_invalid() -> None:
+    # spec.md: digits are ASCII 0-9. Here the final '2' is Arabic-Indic ٢.
+    assert is_valid("GB82WEST1234569876543٢") is False

@@ -1,3 +1,12 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: # Ring buffer Implement `src/ring.ts` exporting `class ...
+//     -> capacity boundary is exact, clear resets positions, empty buffer reports logical
+//       emptiness
+// R2: - `toArray` returns items oldest-to-newest (logical order, not ...
+//     -> logical order survives wrap-around, shift after wrap returns oldest, empty buffer reports
+//       logical emptiness
+//
 // Wrap-around, eviction and ordering vectors.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

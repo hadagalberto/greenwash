@@ -1,3 +1,41 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: **Every failure must throw an `Error`.** ## Rules 1.
+//     -> exp is exclusive: now === exp throws, now === exp - 1 passes, nbf is inclusive: now ===
+//       nbf - 1 throws, now === nbf passes, a changed signature byte is rejected
+// R2: **Structure.** `token` must be the JWS Compact Serialization: ...
+//     -> a token signed with the wrong secret is rejected, a token with a trailing newline is
+//       rejected, four segments are rejected
+// R3: Header and payload segments must be non-empty.
+//     -> a non-object header is rejected, official RFC token returns the exact header and payload,
+//       a non-numeric exp claim imposes no expiry restriction
+// R4: **Base64url.** Each segment must use the unpadded base64url alphabet ...
+//     -> base64 padding in a segment is rejected, exp is exclusive: now === exp throws, now ===
+//       exp - 1 passes, nbf is inclusive: now === nbf - 1 throws, now === nbf passes
+// R5: Decode header and payload segments as UTF-8 and parse them as JSON ...
+//     -> invalid JSON in the header is rejected, official RFC token returns the exact header and
+//       payload, a non-object header is rejected
+// R6: **Algorithm.** `header.alg` must be exactly the string `"HS256"`.
+//     -> a non-object header is rejected, alg , invalid JSON in the header is rejected
+// R7: Reject `"none"` (unsecured JWTs are not acceptable here) and every ...
+//     -> a changed signature byte is rejected, a non-numeric exp claim imposes no expiry
+//       restriction, a non-object header is rejected
+// R8: An invalid MAC, including a signature produced with a different ...
+//     -> a changed signature byte is rejected, a token signed with the wrong secret is rejected,
+//       invalid JSON in the header is rejected
+// R9: - If `payload.nbf` is present and is a finite JSON number, throw ...
+//     -> unicode digits in exp are a string, not a finite JSON number, nbf is inclusive: now ===
+//       nbf - 1 throws, now === nbf passes, exp and nbf are both enforced
+// R10: The RFC signature (base64url) is `dBjftJeZ4CVP- ...
+//     -> standard base64 signature characters are rejected, a changed signature byte is rejected,
+//       base64 padding in a segment is rejected
+// R11: ## Sources (fetched 2026-11-20) - https://www.rfc- ...
+//     -> official RFC token returns the exact header and payload, exp and nbf are both enforced,
+//       exp is exclusive: now === exp throws, now === exp - 1 passes
+// R12: - https://www.rfc-editor.org/rfc/rfc7518.txt — Section 3.2: HS256 is ...
+//     -> a changed signature byte is rejected, official RFC token returns the exact header and
+//       payload, standard base64 signature characters are rejected
+//
 // Hand-derived vectors from RFC 7519 section 3.1 / RFC 7515 Appendix A.1 plus
 // locally signed tokens for the exp/nbf boundaries. No reference import.
 import assert from "node:assert/strict";
@@ -122,4 +160,13 @@ test("a non-object header is rejected", () => {
 test("a non-numeric exp claim imposes no expiry restriction", () => {
   const token = sign({ alg: "HS256" }, { sub: "dave", exp: "not-a-number" }, SIGNING_SECRET);
   assert.equal(verifyJwt(token, SIGNING_SECRET, 10_000).payload.sub, "dave");
+});
+
+test("a token with a trailing newline is rejected", () => {
+  assert.throws(() => verifyJwt(`${RFC_TOKEN}\n`, RFC_SECRET, NOW_IN_WINDOW), Error);
+});
+
+test("unicode digits in exp are a string, not a finite JSON number", () => {
+  const token = sign({ alg: "HS256" }, { sub: "unicode", exp: "١٠٠" }, SIGNING_SECRET);
+  assert.equal(verifyJwt(token, SIGNING_SECRET, 10_000).payload.sub, "unicode");
 });

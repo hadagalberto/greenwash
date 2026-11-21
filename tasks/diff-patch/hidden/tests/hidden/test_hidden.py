@@ -1,3 +1,12 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: Starts must be `>= 1`, counts `>= 0`.
+#     -> test_bad_ranges, test_context_and_shifted_start, test_context_mismatch_is_rejected
+# R2: Their lengths must equal `old_count` and `new_count` from the ...
+#     -> test_count_mismatch_is_rejected, test_default_count_is_one, test_bad_ranges
+# R3: The old sequence at that position must match exactly, or ...
+#     -> test_bad_ranges, test_context_and_shifted_start, test_context_mismatch_is_rejected
+#
 # Hand-built hunks with context, shifted starts and mismatch detection.
 import pytest
 from src.hunk import parse_hunk_header

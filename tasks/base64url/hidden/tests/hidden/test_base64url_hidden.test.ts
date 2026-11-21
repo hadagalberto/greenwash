@@ -1,3 +1,15 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: Decoding must reject any character outside the alphabet (including ...
+//     -> rejects a five-character (1 mod 4) message, rejects standard base64 characters outside
+//       the URL-safe alphabet, URL-safe alphabet check vector
+// R2: Reject non-zero pad bits for canonical encoding.
+//     -> rejects non-zero pad bits in a three-character group, rejects non-zero pad bits in a two-
+//       character group, RFC 4648 empty vector
+// R3: Do not use Node's `Buffer` base64 helpers; implement the codec.
+//     -> rejects standard base64 characters outside the URL-safe alphabet, RFC 4648 empty vector,
+//       RFC 4648 single byte vector
+//
 // Hidden vectors from RFC 4648 sections 5 and 10 (see task spec.md).
 import assert from "node:assert/strict";
 import { test } from "node:test";

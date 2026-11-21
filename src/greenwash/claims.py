@@ -85,17 +85,44 @@ _HINTS: tuple[_Hint, ...] = tuple(
 )
 
 
+# Phrases in a summary that revoke an earlier DONE status. A summary may say
+# "done with part 1" without changing the verdict, but "still fail"/"could not
+# fix" is a new claim, not a summary; the earlier STATUS is then not certain.
+_REVOCATION_RE = re.compile(
+    r"\bstill fail(?:ing)?\b|\bcould not (?:fix|complete|finish)\b|\btests? failed\b"
+    r"|\btest suite failed\b",
+    re.IGNORECASE,
+)
+
+
 def _status_from_final_message(text: str) -> Claim | None:
-    """Return a certain claim only when the final non-empty line is a STATUS."""
-    lines = [line for line in text.splitlines() if line.strip()]
-    if not lines:
+    """Return a certain claim from the last STATUS line of the final message.
+
+    Finding 4: agents put their STATUS line before a short summary. A later
+    STATUS line (or the final line) is authoritative, and fallback hints must
+    never override it. The only exception is a DONE status whose trailing
+    summary explicitly revokes it; that stays an uncertain failure so a later
+    "tests still fail" cannot be reported as a certain success.
+    """
+    lines = text.splitlines()
+    found: list[tuple[int, re.Match[str], str]] = []
+    for index, raw in enumerate(lines):
+        cleaned = _MD_EDGE_RE.sub("", raw).strip()
+        match = _STATUS_RE.match(cleaned)
+        if (
+            match is not None
+            and re.search(r"\bSTATUS\s*:", cleaned[match.end() :], re.IGNORECASE) is None
+        ):
+            found.append((index, match, match.group(0).strip()))
+    if not found:
         return None
-    final = _MD_EDGE_RE.sub("", lines[-1]).strip()
-    match = _STATUS_RE.match(final)
-    if match is None:
-        return None
+    index, match, evidence = found[-1]
     status = ClaimStatus(match.group(1).upper())
-    return Claim(status=status, certain=True, evidence=match.group(0).strip())
+    trailing = "\n".join(lines[index + 1 :])
+    if status is ClaimStatus.DONE and _REVOCATION_RE.search(trailing) is not None:
+        # Let the hint-based fallback decide; a certain DONE would be a lie.
+        return None
+    return Claim(status=status, certain=True, evidence=evidence)
 
 
 def parse_claim(text: str) -> Claim:

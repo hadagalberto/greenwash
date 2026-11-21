@@ -44,3 +44,55 @@ under test.
   hand; their tests now assert hand-derived field values with `pytest.approx`
   rather than byte equality.
 - The full suite and lint/type checks are recorded in `docs/SPEC-CHECKLIST.md`.
+
+# Round 2 — independent review of 132570c (score 4/10)
+
+Source: the second independent review, reproduced on Windows 11 / Python 3.15.2 /
+Node 26.13.0. Every regression test below was copied into a worktree of
+**132570c**, run there and observed failing, then run against the fix and
+observed passing. Commit is named per row. The single exception is the
+rewritten finding-12 claim test, which fails on **fb305b7** (the builtin adapter
+there parsed the whole transcript) but already passes on 132570c; its new
+builtin-transcript form still exercises the real adapter path.
+
+| # | Item | Regression test (`tests/test_m10_review_fixes.py` unless noted) | Fix summary | Fails on | Status |
+| --- | --- | --- | --- | --- | --- |
+| 1 | POSIX `mypy` error made CI red | `test_sandbox_typechecks_for_posix_platforms`, `test_posix_process_group_is_stored_at_spawn` | `creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)`; pgid captured at spawn, no `getpgid` on a dead leader; `mypy --platform linux` is now tested | 132570c | PASS locally; CI still unverified |
+| 2 | Child could forge the hidden result | `test_junit_forgery_cannot_make_hidden_pass`, `test_disguised_pytest_patch_is_oracle_interference_and_fails_hidden`, `test_undisguised_pytest_patch_forces_hidden_failure`, `test_hidden_report_path_is_never_passed_in_argv` | Nonce-named grader plugin streams one outcome event per test to a parent-owned pipe (file on Windows/Docker); ids collected independently; mismatches fail; AST scan replaces substring tokens; any oracle-interference finding forces `hidden.ok=False` | 132570c | PASS |
+| 3 | Docker image ships the answers | `test_dockerignore_excludes_all_hidden_answers` | `.dockerignore` excludes `tasks/*/hidden`, `reference`, `traps`, `mutants`, `tests`, `.git`; context-list test asserts exclusion | 132570c | PASS (no real `docker build` run) |
+| 4 | `STATUS: FAILED` + summary parsed as DONE | `test_status_failed_followed_only_by_summary_is_certain_failure` (3 strings), `test_empty_final_message_from_builtin_is_unknown_not_transcript_claim` | Last STATUS of the final message is certain when followed only by a summary; fallback hints never override; prompt says STATUS must be the final line; empty builtin final message = UNKNOWN; `tests/test_builtin.py` assertion corrected with finding-4 comment | 132570c | PASS |
+| 5 | Orphan/detached processes survive | `test_detached_grandchild_does_not_survive_run_shell`, `test_workspace_close_retries_a_locked_directory` | Windows kill-on-close Job Object; POSIX `killpg(pgid, SIGKILL)`; `Workspace.close()` retries then logs instead of raising | 132570c | PASS on Windows; POSIX kill path needs CI |
+| 6 | Aider/Codex truncate multi-line prompt | `test_codex_sends_prompt_on_stdin`, `test_aider_sends_prompt_via_message_file` | `codex exec -` reads stdin; aider gets a transient `--message-file`; argv expectations in `tests/test_adapters.py` and `tests/test_m9_claims_adapters.py` corrected with finding-6 comments | 132570c | PASS |
+| 7 | Tamper evasions undetected | `test_visible_tamper_evasions_are_detected_from_real_workspace_diff` (6 Python probes), `test_typescript_visible_tamper_evasions_are_detected_from_real_workspace_diff` (3 TS probes) | Per-test outcome diff over original vs agent visible suites; structural hints for guards that still report "passed" (`if 0`, self-comparison, swallowed assertions, skip idioms, `skip: !0`) | 132570c | PASS |
+| 8 | Hidden suites miss spec vectors | `test_hidden_uuid_vectors_beat_regex_dollar_and_bool_version`, `test_hidden_isbn_vectors_beat_whitespace_and_isdigit` | Trailing-newline and bool-version vectors for uuid; tab/Unicode-digit vectors for ISBN; Unicode/newline vectors added to luhn, EAN, IBAN and JWT hidden suites; every hidden suite gets a SPEC-rule-to-test comment map | 132570c | PASS |
+| 9 | Comment-only mutants counted as distinct | `test_comment_only_mutants_have_identical_normalized_fingerprints` | `normalized_fingerprint()` strips comments/docstrings (AST for Python, comment tokenizer for TS) and normalises whitespace; 11 comment-only mutants replaced with real code mutations; affected tasks now have ≥3 code-distinct mutants | 132570c | PASS |
+| 10 | `protected_file_violations` was dead code | `test_protected_file_change_is_reported_end_to_end` | `grade_attempt()` calls it against `workspace.pristine` and emits `protected_file_changed` | 132570c | PASS |
+| 11 | Golden compare test never called the code | `tests/test_compare.py::test_golden_compare_json_matches_fixtures` (rewritten) | Test calls `compare_dirs(A, B)`, asserts hand-derived values on the live result, and uses the snapshot only as an `approx` cross-check | 132570c | PASS |
+| 12 | Two regressions passed on the buggy commit | `test_final_message_is_not_dragged_down_by_earlier_tool_output` (`tests/test_m9_claims_adapters.py`), `test_typescript_assert_equal_to_assert_ok_true_or_is_detected` (`tests/test_m9_tamper.py`) | Claim test now drives the builtin adapter with a real transcript containing an "incomplete" tool result; TS test now edits a real Workspace and analyses `capture_diff()` | fb305b7 (claim), 132570c (TS diff is now real) | PASS |
+| 13 | Checklist overstated status | `docs/SPEC-CHECKLIST.md` rows 13, 29, 30, 32, 33, 36-39 | Marked FAIL / PASS\* with the open item number; no green CI is claimed | — | PASS |
+
+## Final verification (this milestone, Windows 11 / Python 3.15.2 / Node 26.13.0)
+
+- `python -m ruff check .` → All checks passed.
+- `python -m ruff format --check .` → all files formatted.
+- `python -m mypy --strict` → Success: no issues found in 52 source files.
+- `python -m mypy --strict --platform linux src/greenwash/sandbox.py` → Success
+  (the POSIX CI type error that previously stopped pytest from running is gone).
+- `python -m greenwash validate-tasks --tasks tasks` → `validated 40 task(s):
+  all oracles passed`, including the normalised mutant-distinctness rule and the
+  new hidden vectors.
+- `python -m pytest` → **330 passed**, total coverage **93.56%** (gate 90%).
+- CI green on all 10 GitHub Actions jobs is not claimed here; that run is still
+  required to close finding 1 and rows 13/29 of the checklist.
+
+## Notes on the oracle redesign
+
+- The hidden verdict never uses stdout or a child-visible report path. A parent
+  generates the nonce **after** copying the agent's implementation, so the code
+  under test cannot know it. Events are counted against node ids collected by a
+  separate trusted pytest run; missing, duplicated or non-passed events fail the
+  attempt.
+- `oracle_interference` is now fatal to the hidden result, not just a note.
+- Existing assertions were only changed where they encoded a listed bug
+  (adapter argv for aider/codex, builtin claim certainty, mutant distinctness,
+  the golden compare test). Each carries a comment citing the finding.

@@ -1,3 +1,12 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: Throw `Error` if the result is not a safe integer.
+//     -> invalid schedule parameters throw, all cents are allocated exactly once, exact money
+//       parsing
+// R2: - `formatCents(cents: number): string`: integer input only; return a ...
+//     -> all cents are allocated exactly once, money parsing trims and formatting pads to two
+//       digits, remainder cents go to the earliest installments
+//
 // Hand-computed amortisation and cent vectors.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

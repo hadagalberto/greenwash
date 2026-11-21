@@ -1,3 +1,13 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: ## Supported range syntax | Range | Meaning | | --- | --- | | ...
+//     -> numeric comparison, not lexical comparison, ANDed comparator sets, OR of comparator sets
+// R2: ## Prerelease rule A version with a prerelease identifier (for ...
+//     -> caret with major and minor zero, prerelease opt-in compares identifiers per SemVer rule
+//       11, prereleases excluded unless opted into on the same tuple
+// R3: Otherwise it does not satisfy the set, even if its precedence would ...
+//     -> build metadata is ignored for precedence, ANDed comparator sets, OR of comparator sets
+//
 // Hidden vectors from SemVer 2.0.0 rule 11 and the npm node-semver ranges
 // documentation (see task spec.md, both fetched 2026-11-20).
 import assert from "node:assert/strict";

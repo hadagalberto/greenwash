@@ -1,3 +1,9 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: The original exception must be available as `__cause__`.
+#     -> test_compute_delay_validation_covers_cap_and_integer_rule, test_delay_sequence,
+#       test_delay_validation
+#
 # Exact delays, exhaustion semantics and clock values are checked here.
 from __future__ import annotations
 

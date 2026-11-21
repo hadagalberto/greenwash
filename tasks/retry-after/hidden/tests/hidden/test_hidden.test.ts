@@ -1,3 +1,15 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: All time comes from the `nowMs` argument, never the real clock.
+//     -> date value ignores nowMs, nowMs must be finite, impossible date is rejected by the
+//       canonical round-trip check
+// R2: - Otherwise the header must be an IMF-fixdate such as `Sun, 06 Nov ...
+//     -> spec examples for seconds and IMF-fixdate, non-string header throws, date value ignores
+//       nowMs
+// R3: Parse it as UTC; the parse must be finite and `new ...
+//     -> obsolete and asctime date formats are rejected, impossible date is rejected by the
+//       canonical round-trip check, date value ignores nowMs
+//
 // HTTP-date and numeric edge vectors.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

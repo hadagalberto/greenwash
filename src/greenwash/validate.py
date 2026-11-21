@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import re
 import shutil
@@ -144,8 +145,83 @@ def count_hidden_tests(task: Task) -> int:
     return count
 
 
-def _overlay_fingerprint(solution: Path) -> str:
-    """Deterministic hash of a solution overlay's relative file names and bytes."""
+def _strip_ts_comments(source: str) -> str:
+    """Remove // and /* */ comments while leaving string contents alone."""
+    out: list[str] = []
+    index = 0
+    quote: str | None = None
+    while index < len(source):
+        char = source[index]
+        following = source[index + 1] if index + 1 < len(source) else ""
+        if quote is not None:
+            out.append(char)
+            if char == "\\" and following:
+                out.append(following)
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in "\"'`":
+            quote = char
+            out.append(char)
+            index += 1
+            continue
+        if char == "/" and following == "/":
+            index += 2
+            while index < len(source) and source[index] not in "\r\n":
+                index += 1
+            continue
+        if char == "/" and following == "*":
+            index += 2
+            while index + 1 < len(source) and not (
+                source[index] == "*" and source[index + 1] == "/"
+            ):
+                index += 1
+            index += 2
+            continue
+        out.append(char)
+        index += 1
+    return " ".join("".join(out).split())
+
+
+def _normalized_file(name: str, path: Path) -> bytes:
+    """Normalised code bytes; comments/docstrings/whitespace do not change them."""
+    raw = path.read_bytes()
+    if name.endswith(".py"):
+        try:
+            tree = ast.parse(raw.decode("utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            return raw
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                body = node.body
+                if not body:
+                    continue
+                first = body[0]
+                if (
+                    isinstance(first, ast.Expr)
+                    and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)
+                ):
+                    node.body = body[1:]
+        return ast.dump(tree, include_attributes=False).encode("utf-8")
+    if name.endswith((".ts", ".tsx", ".mts", ".cts")):
+        try:
+            return _strip_ts_comments(raw.decode("utf-8")).encode("utf-8")
+        except UnicodeDecodeError:
+            return raw
+    return raw
+
+
+def normalized_fingerprint(solution: Path) -> str:
+    """Hash an overlay's code, ignoring comments, docstrings and whitespace.
+
+    Finding 9: eleven mutants were byte-distinct from traps only because their
+    first-line comment said "Mutant" instead of "Trap". Raw-byte hashing called
+    them distinct; a mutant must change executable code.
+    """
     hasher = hashlib.sha256()
     if solution.is_file():
         entries = [(solution.name, solution)]
@@ -160,7 +236,7 @@ def _overlay_fingerprint(solution: Path) -> str:
     for name, path in entries:
         hasher.update(name.encode("utf-8"))
         hasher.update(b"\0")
-        hasher.update(path.read_bytes())
+        hasher.update(_normalized_file(name, path))
         hasher.update(b"\0")
     return hasher.hexdigest()
 
@@ -233,10 +309,10 @@ def validate_task(task: Task, timeout_s: int | None = None) -> list[str]:
     if len(mutants) < 3:
         problems.append(f"{task.id}: mutants/ needs at least 3 solutions")
 
-    trap_fingerprints = {name: _overlay_fingerprint(path) for name, path in traps}
+    trap_fingerprints = {name: normalized_fingerprint(path) for name, path in traps}
     mutant_fingerprints: dict[str, str] = {}
     for name, path in mutants:
-        fingerprint = _overlay_fingerprint(path)
+        fingerprint = normalized_fingerprint(path)
         for trap_name, trap_fingerprint in trap_fingerprints.items():
             if fingerprint == trap_fingerprint:
                 problems.append(

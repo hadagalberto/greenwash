@@ -1,3 +1,24 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: - This task requires the **canonical** encoding: the last byte's ...
+//     -> rejects bytes after the terminating byte, encoder rejects out-of-range inputs with
+//       RangeError, largest safe integer round trips
+// R2: `0x80 0x00` is therefore not a valid encoding of zero.
+//     -> encoder rejects out-of-range inputs with RangeError, largest safe integer round trips,
+//       official and hand-derived decode vectors
+// R3: ## `encodeVarint(value: number): number[]` - Accept only non- ...
+//     -> largest safe integer round trips, rejects values above MAX_SAFE_INTEGER, encoder rejects
+//       out-of-range inputs with RangeError
+// R4: Use arithmetic (`payload * 2 ** shift`), not JavaScript bitwise ...
+//     -> encoder rejects out-of-range inputs with RangeError, largest safe integer round trips,
+//       official and hand-derived decode vectors
+// R5: For 16383, the two 7-bit groups are both `0x7f`, so the first byte ...
+//     -> rejects bytes after the terminating byte, encoder rejects out-of-range inputs with
+//       RangeError, largest safe integer round trips
+// R6: Examples: ```ts encodeVarint(300); // [0xac, 0x02] ...
+//     -> rejects a missing terminator, rejects overlong encodings, encoder rejects out-of-range
+//       inputs with RangeError
+//
 // Hidden vectors: unsigned LEB128 examples from Wikipedia's LEB128 article and
 // Google's Protocol Buffers encoding guide (see task spec.md, fetched 2026-11-20).
 import assert from "node:assert/strict";

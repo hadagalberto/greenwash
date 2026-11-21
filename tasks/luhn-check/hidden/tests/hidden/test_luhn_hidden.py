@@ -1,3 +1,21 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: Sum all resulting digits (doubled and not doubled).
+#     -> test_at_least_two_ascii_digits_required_without_raising,
+#       test_check_digit_odd_length_payload, test_check_digit_second_known_payload
+# R2: `is_valid(number)` returns `True` only when all of the following ...
+#     -> test_at_least_two_ascii_digits_required_without_raising,
+#       test_check_digit_odd_length_payload, test_check_digit_second_known_payload
+# R3: It must never raise for an arbitrary string input, including the ...
+#     -> test_empty_string_is_invalid, test_at_least_two_ascii_digits_required_without_raising,
+#       test_check_digit_odd_length_payload
+# R4: ## Examples - `luhn_check_digit("1789372997") == "4"` - ...
+#     -> test_check_digit_odd_length_payload, test_check_digit_second_known_payload,
+#       test_wikipedia_example_number_is_valid
+# R5: Only `src/luhn.py` needs changing; do not modify the test files or ...
+#     -> test_at_least_two_ascii_digits_required_without_raising,
+#       test_check_digit_odd_length_payload, test_check_digit_second_known_payload
+#
 """Hidden Luhn vectors.
 
 Expected values are hand-derived from the algorithm in
@@ -59,3 +77,9 @@ def test_at_least_two_ascii_digits_required_without_raising() -> None:
     assert is_valid("0") is False
     assert is_valid("²5") is False
     assert is_valid("٣٣") is False
+
+
+def test_trailing_newline_is_invalid() -> None:
+    # spec.md: the number is a string of ASCII digits; a trailing newline is
+    # not a digit. A regex using `$` would wrongly accept it.
+    assert is_valid("79927398713\n") is False

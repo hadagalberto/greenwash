@@ -1,0 +1,21 @@
+# `docker build .` must not ship the grading answers to the agent.
+# Only workspace/, spec.md and task.yaml are needed from tasks/.
+tasks/*/hidden/
+tasks/*/reference/
+tasks/*/traps/
+tasks/*/mutants/
+
+# Test and development material is not needed inside the sandbox image.
+tests/
+.git/
+.review/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+results/
+docs/
+examples/
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/

@@ -1,3 +1,18 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: ## Contract - `amount_cents` is a non-negative `int` (not `bool`).
+#     -> test_bool_amount_and_zero_total_raise, test_hand_computed_allocations,
+#       test_invalid_inputs
+# R2: - `weights` is a non-empty sequence of non-negative `int` values ...
+#     -> test_bool_amount_and_zero_total_raise, test_tuple_weights_are_accepted,
+#       test_zero_weights_never_receive_cent
+# R3: - `sum(weights)` must be positive.
+#     -> test_result_shape_and_exact_sum, test_tuple_weights_are_accepted,
+#       test_zero_weights_never_receive_cent
+# R4: ## Examples ``` allocate(100, [1, 2, 3, 4]) == [10, 20, 30, 40] ...
+#     -> test_tie_break_is_lowest_index, test_spec_example_allocations,
+#       test_bool_amount_and_zero_total_raise
+#
 # Hand-computed largest-remainder vectors. No expected value is generated
 # by the implementation under test.
 import pytest

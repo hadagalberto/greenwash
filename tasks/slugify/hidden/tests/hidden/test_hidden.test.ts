@@ -1,3 +1,9 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: ## `src/normalize.ts` `foldText(input: string): string`: reject non- ...
+//     -> non-string input throws, NFKD compatibility decomposition folds non-ASCII forms, foldText
+//       exposes the documented NFKD + mark-strip + lowercase result
+//
 // Expected slugs follow NFKD decomposition and mark removal.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

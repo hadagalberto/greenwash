@@ -1,3 +1,27 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: Behaviour must be fully deterministic.
+//     -> a miss does not change the cache, capacity one evicts the previous entry on each insert,
+//       get refreshes recency before eviction
+// R2: ## Constructor `capacity` must be a non-negative integer ...
+//     -> non-integer and NaN capacities throw RangeError, capacity one evicts the previous entry
+//       on each insert, invalid capacity throws RangeError
+// R3: A miss does not change the cache.
+//     -> a miss does not change the cache, capacity one evicts the previous entry on each insert,
+//       get refreshes recency before eviction
+// R4: Only one entry is evicted per insert.
+//     -> capacity one evicts the previous entry on each insert, a miss does not change the cache,
+//       get refreshes recency before eviction
+// R5: Ordering is by **use time**, not insertion time.
+//     -> a miss does not change the cache, capacity one evicts the previous entry on each insert,
+//       get refreshes recency before eviction
+// R6: A `get` on an old key makes it the most recently used key, so a ...
+//     -> get refreshes recency before eviction, updating a key refreshes recency and replaces the
+//       value, a miss does not change the cache
+// R7: Worked examples (all must hold): ```ts const c = new LruCache(2); ...
+//     -> a miss does not change the cache, capacity one evicts the previous entry on each insert,
+//       get refreshes recency before eviction
+//
 // Hidden vectors derived by hand from the LRU definition in the task spec.
 // https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU)
 import assert from "node:assert/strict";

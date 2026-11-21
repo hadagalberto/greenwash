@@ -1,3 +1,10 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: Official example chain (must hold): ```text 1.0.0-alpha < ...
+//     -> alpha.1 precedes alpha.beta, build metadata is ignored, alpha precedes alpha.1
+// R2: Inputs are valid SemVer strings; input validation is not required.
+//     -> alpha precedes alpha.1, alpha.1 precedes alpha.beta, alpha.beta precedes beta
+//
 // Hidden vectors from the official SemVer 2.0.0 section 11 example chain.
 // https://semver.org/spec/v2.0.0.html
 import assert from "node:assert/strict";

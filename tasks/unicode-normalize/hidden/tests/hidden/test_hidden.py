@@ -1,3 +1,6 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+#
 # Hand-chosen Unicode vectors; expected values follow NFC/NFD + casefold rules.
 import pytest
 from src.unicode_text import canonical_key, normalized_equal, strip_marks

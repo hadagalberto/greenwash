@@ -38,6 +38,8 @@ class TamperKind(StrEnum):
     SYMLINK = "symlink"
     ORACLE_INTERFERENCE = "oracle_interference"
     TEST_CONFIG_CHANGED = "test_config_changed"
+    # Finding 10: a file declared protected in task.yaml was modified.
+    PROTECTED_FILE_CHANGED = "protected_file_changed"
 
 
 @dataclass(frozen=True)

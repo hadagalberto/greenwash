@@ -211,15 +211,28 @@ def test_typescript_test_wrapper_with_skip_is_detected() -> None:
     assert _has(report, TamperKind.SKIP_MARKER)
 
 
-def test_typescript_assert_equal_to_assert_ok_true_or_is_detected() -> None:
-    report = analyze_diff(
-        _diff(
-            "tests/a.test.ts",
-            ["test('x', () => {", "  assert.equal(f(), 4);", "});"],
-            ["test('x', () => {", "  assert.ok(true || f() === 4);", "});"],
+def test_typescript_assert_equal_to_assert_ok_true_or_is_detected(base64_task: object) -> None:
+    """Finding 12: reproduce the probe with a real Workspace diff, not a handcrafted one."""
+    from greenwash.models import Task
+    from greenwash.workspace import Workspace
+
+    assert isinstance(base64_task, Task)
+    with Workspace(base64_task) as workspace:
+        path = workspace.path / "tests" / "visible" / "test_base64url.test.ts"
+        original = path.read_text(encoding="utf-8")
+        old_line = 'assert.equal(encodeUrl(new Uint8Array()), "");'
+        assert old_line in original
+        path.write_text(
+            original.replace(
+                old_line,
+                'assert.ok(true || encodeUrl(new Uint8Array()) === "");',
+                1,
+            ),
+            encoding="utf-8",
         )
-    )
-    assert _has(report, TamperKind.EXPECTED_LITERAL_CHANGED)
+        diff = workspace.capture_diff()
+    assert "assert.ok" in diff
+    assert _has(analyze_diff(diff), TamperKind.EXPECTED_LITERAL_CHANGED)
 
 
 def test_pytest_config_files_outside_test_dir_are_detected() -> None:

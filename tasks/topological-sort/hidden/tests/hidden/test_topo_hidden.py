@@ -1,3 +1,12 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: # Deterministic topological sort Implement `src/topo.py` exporting: ...
+#     -> test_duplicate_edges_are_harmless, test_no_edges_is_pure_lexicographic, test_cycle_raises
+# R2: - Duplicate edges are harmless: they must not change the result.
+#     -> test_duplicate_edges_are_harmless, test_no_edges_is_pure_lexicographic, test_cycle_raises
+# R3: - If either endpoint of an edge is not in `nodes`, raise ...
+#     -> test_unknown_node_raises, test_cycle_raises, test_diamond_graph
+#
 """Hidden tests for deterministic topological sorting."""
 
 import pytest

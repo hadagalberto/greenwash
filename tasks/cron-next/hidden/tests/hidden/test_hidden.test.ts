@@ -1,3 +1,9 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: - A candidate matches when minute, hour and month match, and the day ...
+//     -> day-of-month and weekday use OR semantics, spec.md examples return the next matching
+//       minute, wildcard never returns the starting minute
+//
 // Expected instants are worked out by hand from the cron field rules.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

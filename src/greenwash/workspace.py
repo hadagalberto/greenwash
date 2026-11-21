@@ -9,16 +9,20 @@ out of the measurement.
 
 from __future__ import annotations
 
+import contextlib
 import difflib
+import logging
 import os
 import shutil
 import stat
 import subprocess
 import tempfile
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import TracebackType
 
+from greenwash.implscan import format_findings, scan_source
 from greenwash.models import Task
 
 _GIT_OPTIONS = (
@@ -200,11 +204,25 @@ class Workspace:
 
     def close(self) -> None:
         def make_writable(function: Callable[[str], object], path: str, _: object) -> None:
-            os.chmod(path, stat.S_IWRITE)
+            with contextlib.suppress(OSError):
+                os.chmod(path, stat.S_IWRITE)
             function(path)
 
-        shutil.rmtree(self.path, onerror=make_writable)
-        shutil.rmtree(self.pristine, onerror=make_writable)
+        for directory in (self.path, self.pristine):
+            # A detached child (finding 5) may briefly hold a file open after
+            # the run. Retry, then log and move on: cleanup must never turn a
+            # completed attempt into a crash.
+            for attempt in range(4):
+                try:
+                    shutil.rmtree(directory, onerror=make_writable)
+                    break
+                except OSError as exc:
+                    if attempt == 3:
+                        logging.getLogger(__name__).warning(
+                            "could not remove workspace %s: %s", directory, exc
+                        )
+                    else:
+                        time.sleep(0.1 * (attempt + 1))
 
     def __enter__(self) -> Workspace:
         return self
@@ -281,7 +299,6 @@ def build_grading_dir(task: Task, agent_path: Path, destination: Path) -> list[s
         ]
 
     interference: list[str] = []
-    forbidden = ("node:assert", "node:test", "_pytest", "pytest", "sys.modules")
     for rel_path in implementation:
         source = agent_path / rel_path
         target = destination / rel_path
@@ -293,9 +310,10 @@ def build_grading_dir(task: Task, agent_path: Path, destination: Path) -> list[s
                 target.unlink()
             continue
         shutil.copy2(source, target)
-        text = _read_text(source)
-        if any(token in text for token in forbidden):
-            interference.append(rel_path)
+        language = "typescript" if source.suffix in {".ts", ".tsx", ".mts", ".cts"} else "python"
+        findings = scan_source(_read_text(source), language)
+        if findings:
+            interference.append(format_findings(rel_path, findings))
 
     copy_overlay(task.workspace_dir / task.visible_test_dir, destination / task.visible_test_dir)
     copy_overlay(task.hidden_dir / task.hidden_test_dir, destination / task.hidden_test_dir)

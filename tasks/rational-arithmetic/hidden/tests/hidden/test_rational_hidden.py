@@ -1,3 +1,12 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: ```python def add(a: tuple[int, int], b: tuple[int, int]) -> ...
+#     -> test_negative_denominator_moves_sign_to_numerator, test_zero_is_canonical,
+#       test_division_by_zero_rational_raises
+# R2: It must normalize signs before comparing: `(1, -2)` and `(-2, 4)` ...
+#     -> test_additions_with_signs_and_unreduced_inputs,
+#       test_comparisons_with_negative_denominators, test_division_by_zero_rational_raises
+#
 """Hidden rational vectors.
 
 Expected tuples are reduced by hand from the ordered-pair definitions and

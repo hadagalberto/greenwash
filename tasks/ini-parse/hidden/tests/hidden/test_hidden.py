@@ -1,3 +1,9 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: - A section header is `[name]`; `name` is trimmed and must be non-empty.
+#     -> test_empty_continuation_adds_nothing, test_empty_value_and_colon_separator,
+#       test_keys_before_first_section
+#
 # Expected dictionaries are written by hand from the documented rules.
 import pytest
 from src.ini_parse import parse_ini

@@ -1,3 +1,9 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: ## `src/scheduler.ts` ```ts export interface Scheduler { now(): ...
+//     -> constructor rejects non-finite and negative delays, flush and cancel are no-ops when
+//       nothing is pending, cancel discards the pending callback
+//
 // Reset, flush and cancel behaviour checked with the controlled scheduler.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

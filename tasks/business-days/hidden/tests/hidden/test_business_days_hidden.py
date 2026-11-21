@@ -1,3 +1,19 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: A **business day** is a date that is Monday through Friday and is ...
+#     -> test_many_holidays_skip_to_next_business_day, test_forward_from_business_day,
+#       test_weekend_is_not_a_business_day
+# R2: Holiday strings are exact dates only: no observance shifting (a ...
+#     -> test_weekend_holiday_is_not_shifted_to_monday,
+#       test_negative_with_holiday_spanning_weekend,
+#       test_zero_days_ignores_weekend_and_holiday_status
+# R3: Semantics: - `days > 0`: count business days strictly **after** ...
+#     -> test_negative_counts_strictly_before_start, test_forward_from_business_day,
+#       test_many_holidays_skip_to_next_business_day
+# R4: - `days < 0`: count business days strictly **before** `start`; ...
+#     -> test_negative_counts_strictly_before_start, test_forward_from_business_day,
+#       test_many_holidays_skip_to_next_business_day
+#
 """Hidden tests for business-day arithmetic; expected values verified by hand."""
 
 from src.business_days import add_business_days

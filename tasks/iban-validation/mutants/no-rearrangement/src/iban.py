@@ -1,21 +1,25 @@
-"""Mutant: the first four characters are no longer moved to the end."""
+"""IBAN validation (ISO 13616) with ISO/IEC 7064 MOD-97-10 check digits."""
 
 from __future__ import annotations
 
-_COUNTRY_LENGTHS = {"GB": 22, "DE": 22, "IE": 22, "FR": 27, "ES": 24, "NL": 18, "BE": 16}
+_COUNTRY_LENGTHS = {"GB": 21, "DE": 22, "IE": 22, "FR": 27, "ES": 24, "NL": 18, "BE": 16}
 
 
 def _normalize(iban: str) -> str:
+    """Strip grouping spaces and upper-case letters."""
     return iban.replace(" ", "").upper()
 
 
 def mod97(iban: str) -> int:
+    """Return the MOD-97-10 remainder of a normalized, expanded IBAN."""
     value = _normalize(iban)
-    expanded = "".join(str(ord(ch) - 55) if ch.isalpha() else ch for ch in value)
+    rearranged = value[4:] + value[:4]
+    expanded = "".join(str(ord(ch) - 55) if ch.isalpha() else ch for ch in rearranged)
     return int(expanded) % 97
 
 
 def is_valid(iban: str) -> bool:
+    """Return True only for a well-formed, supported, check-digit-valid IBAN."""
     value = _normalize(iban)
     if len(value) < 4:
         return False

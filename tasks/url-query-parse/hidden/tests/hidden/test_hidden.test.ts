@@ -1,3 +1,8 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: A malformed escape (`%` not followed by two hex digits) or invalid ...
+//     -> invalid utf-8 throws, malformed escapes throw, empty segments and empty keys
+//
 // Expected decoded strings are written by hand from RFC 3986 percent rules.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

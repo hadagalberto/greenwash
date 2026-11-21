@@ -18,7 +18,7 @@ import httpx
 
 from greenwash.claims import parse_claim
 from greenwash.errors import AdapterUnavailableError
-from greenwash.models import AgentResult
+from greenwash.models import AgentResult, Claim, ClaimStatus
 from greenwash.pricing import PriceTable
 from greenwash.sandbox import Sandbox
 
@@ -394,7 +394,14 @@ class BuiltinAdapter:
             adapter=self.name,
             model=self._model,
             transcript=transcript,
-            claim=parse_claim(final_message or transcript),
+            # An empty final message means the model never actually said
+            # anything. The transcript contains tool output, not a claim, so
+            # parsing it would manufacture a verdict (finding 4).
+            claim=(
+                parse_claim(final_message)
+                if final_message
+                else Claim(status=ClaimStatus.UNKNOWN, certain=False, evidence="")
+            ),
             final_message=final_message,
             tokens_in=tokens_in,
             tokens_out=tokens_out,

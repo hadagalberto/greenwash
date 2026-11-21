@@ -1,3 +1,12 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: - `decode_cursor(token: str) -> dict`: accept only a non-empty ASCII ...
+#     -> test_bad_cursor_payloads, test_emitted_token_never_has_padding,
+#       test_exact_token_for_known_payload
+# R2: - `decode_offset(token) -> int`: decode the cursor, require ...
+#     -> test_bad_cursor_payloads, test_emitted_token_never_has_padding,
+#       test_exact_token_for_known_payload
+#
 # Expected tokens are derived from RFC 4648 + the documented JSON form.
 import base64
 

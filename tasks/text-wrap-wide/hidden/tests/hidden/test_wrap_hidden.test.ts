@@ -1,3 +1,15 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: A cluster is never split.
+//     -> combining marks remain with their base cluster, combining marks and ZWJ have zero advance
+//       width, empty string and only first code point measured
+// R2: Only ASCII space (U+0020) is a separator.
+//     -> space runs collapse and empty tokens vanish, wide characters and long ASCII words hard-
+//       break by columns, combining marks and ZWJ have zero advance width
+// R3: Worked examples (all must hold): ```text wrapText("hello world", 5) ...
+//     -> combining marks and ZWJ have zero advance width, wide characters and long ASCII words
+//       hard-break by columns, width below one throws RangeError
+//
 // Hidden vectors derived by hand from UAX #11 / UAX #29 and the task spec.
 // https://www.unicode.org/reports/tr11/
 // https://www.unicode.org/reports/tr29/

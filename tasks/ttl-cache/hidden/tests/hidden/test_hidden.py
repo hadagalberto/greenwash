@@ -1,3 +1,14 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: ``` ## Contract - Time comes only from the injected `clock()` (seconds).
+#     -> test_backwards_clock_keeps_entries, test_spec_example_and_non_callable_clock,
+#       test_expiry_boundary_is_inclusive
+# R2: - `ttl` must be finite and `> 0`, otherwise `ValueError`.
+#     -> test_invalid_ttl, test_backwards_clock_keeps_entries, test_expiry_boundary_is_inclusive
+# R3: - `delete` returns `True` only if a live entry existed.
+#     -> test_purge_affects_delete_and_size, test_backwards_clock_keeps_entries,
+#       test_expiry_boundary_is_inclusive
+#
 # Hand-computed expiry vectors with a fully injected clock.
 import pytest
 from src.ttl_cache import TtlCache

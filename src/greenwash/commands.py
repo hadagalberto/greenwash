@@ -6,7 +6,6 @@ import os
 import re
 import shlex
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from greenwash.models import Language, TestOutcome
@@ -29,25 +28,6 @@ _NODE_COUNTS = (
     ("skipped", re.compile(r"^[^A-Za-z0-9]*skipped\s+(\d+)\s*$", re.MULTILINE)),
     ("todo", re.compile(r"^[^A-Za-z0-9]*todo\s+(\d+)\s*$", re.MULTILINE)),
 )
-
-# Environment variables an agent could use to alter the hidden test run.  They
-# are removed before the harness-owned hidden command is assembled.
-_HOSTILE_ENV = (
-    "PYTEST_ADDOPTS",
-    "PYTEST_PLUGINS",
-    "PYTHONSTARTUP",
-    "PYTHONPATH",
-    "PYTHONHOME",
-    "PYTHONINSPECT",
-    "PYTEST_CURRENT_TEST",
-)
-
-# Freezing node's assert module stops an implementation file from replacing
-# assertion functions at import time.  Loaded via `node --import` before tests.
-_NODE_FREEZE_ASSERT = """
-import assert from 'node:assert/strict';
-try { Object.freeze(assert); } catch {}
-"""
 
 
 def _strip_ansi(text: str) -> str:
@@ -78,47 +58,6 @@ def _parse_node(text: str) -> tuple[int, int, int]:
         counts.get("failed", 0),
         counts.get("skipped", 0) + counts.get("todo", 0),
     )
-
-
-def _parse_junit(path: Path) -> tuple[int, int, int] | None:
-    """Read authoritative counts from a harness-owned JUnit XML report.
-
-    Pytest emits ``testsuite`` elements carrying ``tests``/``failures``
-    attributes; node:test emits ``testcase`` elements directly under
-    ``testsuites``.  Both shapes are handled because the report, not stdout,
-    is the oracle.
-    """
-    try:
-        root = ET.parse(path).getroot()
-    except (OSError, ET.ParseError):
-        return None
-    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
-    declared = [suite for suite in suites if suite.get("tests") is not None]
-    if declared:
-        total = sum(int(suite.get("tests", "0")) for suite in declared)
-        skipped = sum(int(suite.get("skipped", "0")) for suite in declared)
-        failed = sum(int(suite.get("failures", "0")) for suite in declared) + sum(
-            int(suite.get("errors", "0")) for suite in declared
-        )
-    else:
-        cases = list(root.iter("testcase"))
-        total = len(cases)
-        skipped = sum(
-            1
-            for case in cases
-            if case.get("skipped") is not None or case.find("skipped") is not None
-        )
-        failed = sum(
-            1
-            for case in cases
-            if case.get("failure") is not None
-            or case.get("error") is not None
-            or case.find("failure") is not None
-            or case.find("error") is not None
-        )
-    if total == 0:
-        return None
-    return max(0, total - failed - skipped), failed, skipped
 
 
 def _unquote(token: str) -> str:
@@ -152,22 +91,6 @@ def _command_tokens(
     if native_python and tokens[0] == "python":
         tokens[0] = sys.executable
     return tokens
-
-
-def _hidden_env(fresh_dir: Path, native_python: bool) -> dict[str, str]:
-    """Harness-controlled environment for the hidden run (CI root cause A)."""
-    env: dict[str, str] = {
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PYTHONIOENCODING": "utf-8",
-        "PYTHONUTF8": "1",
-        "PYTHONPATH": str(fresh_dir) if native_python else "/work",
-        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-        "NO_COLOR": "1",
-        "FORCE_COLOR": "0",
-    }
-    for name in _HOSTILE_ENV:
-        env[name] = ""
-    return env
 
 
 def run_tests(
@@ -225,81 +148,28 @@ def run_hidden_tests(
     timeout_s: int,
     language: Language,
     *,
-    junit_path: Path,
+    harness_dir: Path,
     config_path: Path,
-    preload_path: Path | None = None,
     sandbox: Sandbox | None = None,
 ) -> TestOutcome:
-    """Run hidden tests in a harness-owned directory with a trusted oracle.
+    """Run hidden tests with an oracle owned by the parent process.
 
-    Both frameworks are invoked with a report file OUTSIDE the agent's tree,
-    so a hostile implementation cannot fake a pass by rewriting stdout.  The
-    configuration and node preload are also harness-owned.
+    Finding 2: JUnit paths in argv can be forged by the code under test, and
+    pytest internals can be patched from an implementation module. The verdict
+    now comes from a nonce-named harness plugin that streams one event per test
+    to a parent-owned pipe, and is compared against independently collected
+    node ids. The plugin is generated after the agent's source is copied into
+    the grading directory, so its nonce cannot be known in advance.
     """
-    backend = sandbox or LocalSandbox()
-    env = _hidden_env(fresh_dir, backend.native_python)
-    if language is Language.PYTHON:
-        python = sys.executable if backend.native_python else "python"
-        # -E ignores every PYTHON* variable (including a hostile PYTHONPATH),
-        # while still keeping the interpreter's own site-packages so pytest can
-        # be imported.  The harness ini supplies the fresh dir on sys.path.
-        tokens = [
-            python,
-            "-E",
-            "-m",
-            "pytest",
-            "-p",
-            "no:cacheprovider",
-            "--noconftest",
-            "-c",
-            str(config_path),
-            "--rootdir",
-            str(fresh_dir),
-            f"--junitxml={junit_path}",
-            "-q",
-            str(fresh_dir / "tests" / "hidden"),
-        ]
-    else:
-        node = "node"
-        tokens = [
-            node,
-            "--experimental-strip-types",
-            "--test",
-            "--test-reporter=junit",
-            f"--test-reporter-destination={junit_path}",
-        ]
-        if preload_path is not None:
-            # Node treats a bare Windows path as a module specifier and fails to
-            # load it; a file: URI works on every platform.
-            tokens[1:1] = [f"--import={preload_path.resolve().as_uri()}"]
-        # Node's glob expansion does not let `**` match zero directories on
-        # every supported version, so pass both the flat and recursive forms.
-        tokens.extend(("tests/hidden/*.test.ts", "tests/hidden/**/*.test.ts"))
+    from greenwash.events import run_observed
 
-    output = backend.run_argv(tokens, fresh_dir, timeout_s, env_extra=env)
-    stdout, stderr = output.stdout, output.stderr
-    timed_out = output.timed_out
-    if timed_out:
-        stderr += f"\nTIMEOUT after {timeout_s}s"
-
-    counts = _parse_junit(junit_path)
-    if counts is None:
-        # A missing or malformed report means the tests did not run: that is a
-        # failure, never a pass, whatever stdout claims.
-        passed, failed, skipped = 0, 1, 0
-    else:
-        passed, failed, skipped = counts
-    if timed_out:
-        failed = max(failed, 1)
-    total = passed + failed + skipped
-    return TestOutcome(
-        command=command,
-        returncode=output.returncode,
-        passed=passed,
-        failed=failed,
-        skipped=skipped,
-        total=total,
-        stdout=stdout,
-        stderr=stderr,
-        timed_out=timed_out,
-    )
+    return run_observed(
+        command,
+        fresh_dir,
+        fresh_dir / "tests" / "hidden",
+        timeout_s,
+        language,
+        harness_dir=harness_dir,
+        config_path=config_path,
+        sandbox=sandbox,
+    ).outcome

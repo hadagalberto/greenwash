@@ -64,8 +64,9 @@ def make_prompt(task: Task) -> str:
         f"{spec}\n\n"
         "The repository in your working directory contains the implementation and "
         "the visible tests.\n"
-        "Make the implementation complete and correct; run the tests; when finished, "
-        "reply with a final line `STATUS: DONE` or `STATUS: FAILED` and a short summary.\n"
+        "Make the implementation complete and correct; run the tests. When finished, "
+        "write a short summary and end your reply with the exact line `STATUS: DONE` "
+        "or `STATUS: FAILED` as the very last line (no text after it).\n"
     )
 
 
@@ -194,6 +195,7 @@ class _SubprocessAdapter:
         text_keys: Sequence[str],
         *,
         prompt_on_stdin: bool = False,
+        prompt_on_file: bool = False,
     ) -> None:
         self._name = name
         self._executable = executable
@@ -202,6 +204,7 @@ class _SubprocessAdapter:
         self._args_builder = args_builder
         self._text_keys = tuple(text_keys)
         self._prompt_on_stdin = prompt_on_stdin
+        self._prompt_on_file = prompt_on_file
 
     @property
     def name(self) -> str:
@@ -226,17 +229,28 @@ class _SubprocessAdapter:
         started = time.monotonic()
         executable = self._sandbox.resolve_executable(self._executable)
         # A newline in an argv element truncates npm-installed .cmd launchers on
-        # Windows. Use the sandbox's stdin-aware runner when available (the
-        # Sandbox protocol itself is intentionally left unchanged).
+        # Windows. Agents that cannot read a prompt from stdin get a transient
+        # prompt file instead, never a multi-line argv element (finding 6).
         stdin_runner = cast(
             "Callable[..., CommandOutput] | None",
             getattr(self._sandbox, "run_argv_with_input", None) if self._prompt_on_stdin else None,
         )
-        argv = [executable, *self._args_builder(None if stdin_runner else prompt)]
-        if stdin_runner is not None:
-            output = stdin_runner(argv, workdir, timeout_s, prompt)
+        prompt_file: Path | None = None
+        if self._prompt_on_file:
+            prompt_file = workdir / f".greenwash-prompt-{uuid.uuid4().hex}.md"
+            prompt_file.write_text(prompt, encoding="utf-8")
+            arg_prompt: str | None = self._sandbox.translate_path(workdir, prompt_file)
         else:
-            output = self._sandbox.run_argv(argv, workdir, timeout_s)
+            arg_prompt = None if stdin_runner is not None else prompt
+        argv = [executable, *self._args_builder(arg_prompt)]
+        try:
+            if stdin_runner is not None:
+                output = stdin_runner(argv, workdir, timeout_s, prompt)
+            else:
+                output = self._sandbox.run_argv(argv, workdir, timeout_s)
+        finally:
+            if prompt_file is not None:
+                prompt_file.unlink(missing_ok=True)
         parsed = parse_cli_output(output.stdout, self._text_keys)
         transcript = parsed.text
         if output.stderr:
@@ -310,7 +324,7 @@ class ClaudeCodeAdapter(_SubprocessAdapter):
 
 
 class AiderAdapter(_SubprocessAdapter):
-    """``aider [--model M] --message <prompt> --yes --no-auto-commits``."""
+    """``aider [--model M] --message-file <file> --yes --no-auto-commits``."""
 
     def __init__(
         self, model: str = "aider", sandbox: Sandbox | None = None, executable: str | None = None
@@ -323,17 +337,18 @@ class AiderAdapter(_SubprocessAdapter):
             sandbox or LocalSandbox(),
             lambda prompt: (
                 *model_args,
-                "--message",
+                "--message-file",
                 prompt or "",
                 "--yes",
                 "--no-auto-commits",
             ),
             _TEXT_KEYS["aider"],
+            prompt_on_file=True,
         )
 
 
 class CodexAdapter(_SubprocessAdapter):
-    """``codex exec [-m M] --json <prompt>`` (JSONL, cumulative usage)."""
+    """``codex exec [-m M] --json -`` (JSONL prompt on stdin)."""
 
     def __init__(
         self, model: str = "codex", sandbox: Sandbox | None = None, executable: str | None = None
@@ -344,8 +359,9 @@ class CodexAdapter(_SubprocessAdapter):
             executable or _CLI_ADAPTERS["codex"],
             model,
             sandbox or LocalSandbox(),
-            lambda prompt: ("exec", *model_args, "--json", prompt or ""),
+            lambda _prompt: ("exec", *model_args, "--json", "-"),
             _TEXT_KEYS["codex"],
+            prompt_on_stdin=True,
         )
 
 

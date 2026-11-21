@@ -32,7 +32,7 @@ measurable.
 | 10 | Hypothesis "where useful" | PASS | Installed in `dev` extras. No property test was added because every vector in this project has a known official/expected value; deterministic assertions are stronger here. No skipped placeholders. |
 | 11 | Small runtime deps: httpx, PyYAML, Jinja2, optional rich | PASS | `dependencies = [httpx, Jinja2, PyYAML, typer]`; rich is not required anywhere. |
 | 12 | Tasks in Python **and** TypeScript; harness runs each task's own test command | PASS\* | 20 Python + 20 TypeScript tasks; `task.yaml` declares visible/hidden commands executed by `run_tests()`. Deviation recorded in SPEC: Node's built-in `node:test` is used instead of vitest, and `--experimental-strip-types` requires Node ≥ 22.6 (CI pins 22.23.5). All TS commands use an explicit quoted glob so Node 22 does not treat a directory as a test file. |
-| 13 | CI on ubuntu/windows/macos for harness; separate ubuntu `validate-tasks` job | PASS\* | `.github/workflows/ci.yml`: 3-OS × 3-Python matrix plus an exact Node 22.23.5 pin (previously Node 22 resolved to a version whose `--test` directory handling broke every TS task, and `sum()` broke float goldens on Python 3.11). Both root causes are fixed and covered by `tests/test_m9_taskdata.py` and `tests/test_m9_metrics.py`. |
+| 13 | CI on ubuntu/windows/macos for harness; separate ubuntu `validate-tasks` job | FAIL (item 1) | The matrix is declared, but 6 ubuntu/macos jobs were red at `mypy --strict` because `sandbox.py` used the Windows-only `subprocess.CREATE_NEW_PROCESS_GROUP`. The POSIX type error is fixed and `mypy --platform linux` is now a regression test; a green run of all 10 jobs has **not** been observed here, so this row stays FAIL until CI is green. |
 | 14 | README.md (en) + README.pt-BR.md, CHANGELOG, CONTRIBUTING, LICENSE | PASS | All five files present; both README quickstarts were executed (see item 22). |
 | 15 | Do not publish to PyPI | PASS | No `twine`, `uv publish` or PyPI upload step anywhere; wheel build is local only. |
 
@@ -67,11 +67,11 @@ states this explicitly.
 | 26 | `run --agent --model [--tasks glob] [--repeat] [--jobs] [--timeout] [--out]` | PASS | All exercised in `tests/test_cli.py` and the verified README example. `--timeout 0`/negative now rejected with exit 2 (m8 regression). |
 | 27 | Isolated temp workspace, git-initialised so diffs are exact | PASS\* | `Workspace` still initialises git for agent convenience, but the graded diff is now computed in Python with `difflib` against a pristine snapshot. This is stronger than a git diff: agent replace refs, `info/exclude`, fsmonitor hooks and textconv drivers cannot hide edits or run host commands. Regression tests in `tests/test_m9_core_security.py`. |
 | 28 | Standard prompt (spec + completion instruction) | PASS | `make_prompt()` includes full spec and the exact `STATUS: DONE`/`STATUS: FAILED` instruction; used by every adapter and the e2e profile adapter. |
-| 29 | Timeout enforced; transcript, tokens/cost, wall time captured | PASS | Process-tree kill on timeout (`start_new_session` / `CREATE_NEW_PROCESS_GROUP` + `taskkill /T /F`), verified by `tests/test_m9_sandbox.py`. Transcript and final message are persisted in `results.jsonl` (200 KB cap) and shown in the HTML drill-down; `tests/test_m9_core_security.py`. |
-| 30 | Grade order: visible as-is → restore originals → overlay hidden | PASS\* | Hidden tests now run in a fresh harness-owned directory containing only declared implementation files, pristine visible tests and the task's hidden tests, with an isolated ini/environment and JUnit reports outside the workspace. `tests/test_m9_core_security.py` covers hostile conftest, pytest ini, pyproject plugin, sitecustomize and assert monkeypatching. |
+| 29 | Timeout enforced; transcript, tokens/cost, wall time captured | PASS\* (item 5) | Windows now uses a kill-on-close Job Object (catches detached grandchildren) and POSIX stores the pgid at spawn instead of calling `getpgid` after exit; `Workspace.close()` retries and logs instead of raising. Verified on Windows by `tests/test_m10_review_fixes.py`; POSIX process-kill behaviour is not executed in this environment, so CI confirmation remains open. |
+| 30 | Grade order: visible as-is → restore originals → overlay hidden | PASS\* (item 2) | Hidden tests run in a fresh harness-owned directory; the verdict now comes from a nonce-named parent-owned event stream, not a child-visible JUnit file. Oracle-interference findings force `hidden.ok = False`. Verified locally by the round-2 forgery probes; POSIX fd transport is not exercised on Windows. |
 | 31 | Tamper analysis from git diff, all kinds classified with hunk | PASS | `tests/test_tamper.py`, `tests/test_m7_review_regressions.py`, m8 regressions plus `tests/test_m9_tamper.py` (config injection, tautologies, early returns, TS skip options and false-positive controls). |
-| 32 | Claim parsing: final `STATUS:` line; documented uncertain fallback | PASS | `parse_claim()` accepts STATUS only on the final non-empty line after markdown stripping, applies word-boundary hints bottom-to-top to the final message only, and exposes an uncertain rate. `tests/test_m9_claims_adapters.py` covers all eight review strings. |
-| 33 | Optional Docker isolation; local default warns | PASS | `docker/Dockerfile` supplies Python 3.12, pytest and Node 22; `--network none`, `--pids-limit`, `--memory`, a named container and kill-on-timeout. The local warning now also states that hidden tests are readable on the host. |
+| 32 | Claim parsing: final `STATUS:` line; documented uncertain fallback | PASS\* (item 4) | The last STATUS line of the final message is certain even when a short summary follows, and fallback hints can no longer turn `STATUS: FAILED` into DONE. An empty builtin final message yields UNKNOWN. Existing golden assertions that encoded the old behaviour were corrected with a finding-4 comment. |
+| 33 | Optional Docker isolation; local default warns | PASS\* (item 3) | `docker/Dockerfile` supplies Python 3.12, pytest and Node 22 with network/pid/memory limits, and a `.dockerignore` now excludes `tasks/*/hidden`, `reference/`, `traps/`, `mutants/` and `tests/` from the build context. No real `docker build` was run here. |
 
 ## Adapters (SPEC lines 38–40)
 
@@ -79,10 +79,10 @@ states this explicitly.
 | --- | --- | --- | --- |
 | 34 | `builtin` tool loop: read_file, write_file, list_dir, run_command (timeout + truncation) | PASS | `TOOL_DEFINITIONS` and `ToolExecutor`; `tests/test_builtin.py` covers all four, path-traversal rejection, large-output middle truncation and step limit. |
 | 35 | Configurable base_url / api_key_env; usage + versioned price table | PASS | CLI flags wired to `BuiltinAdapter`; fake OpenAI server test verifies cost = 100/1M×0.15 + 20/1M×0.6; malformed price table exits 2; m8 regression rejects NaN/Infinity. |
-| 36 | `opencode run --format json` | PASS | Fake executable records argv; `--model <id>` is now passed and the multi-line prompt is streamed via stdin so `.cmd` launchers cannot truncate it. `tests/test_m9_claims_adapters.py`. |
+| 36 | `opencode run --format json` | PASS | Fake executable records argv; `--model <id>` is passed and the multi-line prompt is streamed via stdin so `.cmd` launchers cannot truncate it. `tests/test_m9_claims_adapters.py`. |
 | 37 | `claude -p --output-format json` | PASS | Same, with `--model` and stdin prompt. |
-| 38 | `aider --message` | PASS | Same, with `--model`. |
-| 39 | `codex exec --json` | PASS | Same, with `-m`, including cumulative JSONL usage. |
+| 38 | `aider --message-file` | PASS\* (item 6) | Aider previously received only the first line through a `.cmd` shim. It now writes a transient prompt file in the workspace and passes `--message-file <path>`; the file is deleted after the run. |
+| 39 | `codex exec --json -` | PASS\* (item 6) | Codex previously passed the prompt in argv. It now uses `codex exec -` and streams the full prompt on stdin; cumulative JSONL usage parsing is unchanged. |
 | 40 | `command` template with `{workdir}` `{prompt_file}` | PASS | `test_cli_run_with_command_adapter` runs a real Python agent script. |
 | 41 | Unavailable adapters reported, never faked | PASS | `resolve_adapter()` checks installation/config; missing executable exits 2 with "not available". |
 | 42 | Unit-test adapters with fake executables/servers | PASS | `tests/fake_openai_server.py` (loopback only), `write_fake_cli()` helper, 17 adapter tests. |
@@ -153,3 +153,14 @@ DST task; UTC/DST-adjacent behaviour is covered by `cron-next` and `retry-after`
 CI root causes A (Node 22 directory argument) and B (Python 3.11 float sum) are
 fixed and covered by regression tests, so the green local suite is no longer an
 artefact of using versions outside the CI matrix.
+
+## Round-2 correction (this milestone)
+
+The "Final verification" block above records the **previous** milestone's local
+run. Round-2 finding 1 showed that CI was red on 6 POSIX jobs despite that green
+local run. Rows 13, 29, 30, 32, 33, 38 and 39 are therefore corrected above.
+A full local suite and all lint/type/validation commands were re-run after the
+round-2 fixes: `ruff`/`mypy --strict` clean, `validate-tasks` reports 40/40
+oracles passed, and `pytest` reports 330 passed with 93.56% coverage. Details
+are in `docs/REVIEW-FIXES.md`. CI green on all 10 jobs is **not** claimed — that
+requires the GitHub Actions run.

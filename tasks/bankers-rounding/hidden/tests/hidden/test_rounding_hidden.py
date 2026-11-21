@@ -1,3 +1,21 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: ## Rounding rule (round half to even / banker's rounding) Work on ...
+#     -> test_sticky_digit_forces_round_up_at_a_half, test_negative_magnitude_tie_uses_even_digit,
+#       test_official_rounding_vectors
+# R2: Round **up only if the last kept digit is odd**; otherwise round down.
+#     -> test_tie_on_odd_kept_digit_goes_up, test_sticky_digit_forces_round_up_at_a_half,
+#       test_tie_on_even_kept_digit_stays_down
+# R3: The string `"0"` never becomes `"-0"`.
+#     -> test_carry_propagates_through_nines, test_negative_magnitude_tie_uses_even_digit,
+#       test_negative_zero_is_never_emitted
+# R4: Using a binary float changes results: `2.675` is not exactly ...
+#     -> test_sticky_digit_forces_round_up_at_a_half, test_carry_propagates_through_nines,
+#       test_negative_magnitude_tie_uses_even_digit
+# R5: The exact decimal string must give `2.68` because the kept last ...
+#     -> test_tie_on_odd_kept_digit_goes_up, test_tie_on_even_kept_digit_stays_down,
+#       test_negative_magnitude_tie_uses_even_digit
+#
 """Hidden round-half-to-even vectors.
 
 Expected strings are worked out by hand from the exact decimal digits using

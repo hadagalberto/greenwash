@@ -1,3 +1,18 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: ## Supported grammar Only the designator form with **non-negative ...
+#     -> test_format_rejects_non_integer_negative_and_bool_components,
+#       test_zero_duration_representations_are_equivalent, test_canonical_format
+# R2: - Date designators (`Y`, `M`, `W`, `D`) may appear only before `T`, ...
+#     -> test_canonical_format, test_format_rejects_non_integer_negative_and_bool_components,
+#       test_full_spec_format_example
+# R3: - Time designators (`H`, `M`, `S`) may appear only after `T`, in ...
+#     -> test_canonical_format, test_format_rejects_non_integer_negative_and_bool_components,
+#       test_full_spec_format_example
+# R4: - `T` may appear at most once and must be followed by at least one ...
+#     -> test_canonical_format, test_format_rejects_non_integer_negative_and_bool_components,
+#       test_full_spec_format_example
+#
 # Hand-written vectors from the ISO 8601 rule cited in spec.md.
 import pytest
 from src.iso_duration import format_duration, parse_duration

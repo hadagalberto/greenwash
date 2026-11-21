@@ -1,3 +1,17 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: A record separator is never part of a field.
+//     -> CRLF record separators and no trailing empty record, comma inside a quoted field, line
+//       break inside a quoted field is data
+// R2: - A quote character that begins a field must be the first character ...
+//     -> comma inside a quoted field, doubled quotes represent one literal quote, line break
+//       inside a quoted field is data
+// R3: Spaces are ordinary characters: fields are **never trimmed**.
+//     -> fields are not trimmed, empty fields, CRLF record separators and no trailing empty record
+// R4: - A trailing record terminator does not create an extra empty record.
+//     -> CRLF record separators and no trailing empty record, trailing empty field is a real
+//       field, empty fields
+//
 // Hidden vectors from RFC 4180 section 2 rules 2, 4, 5, 6 and 7
 // (see task spec.md, fetched 2026-11-20).
 import assert from "node:assert/strict";

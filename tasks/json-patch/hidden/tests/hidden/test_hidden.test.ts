@@ -1,3 +1,18 @@
+// SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+// Every rule below is exercised by at least one test in this directory.
+// R1: ## `src/pointer.ts` - `parsePointer(pointer: string): string[]`: ...
+//     -> root replacement and leading zeros rejected, add to a nonexistent parent fails (RFC
+//       A.12), append with dash and ignore extra members (RFC A.11, A.16)
+// R2: Array tokens are unsigned decimal integers without leading zeros; ...
+//     -> root replacement and leading zeros rejected, add to a nonexistent parent fails (RFC
+//       A.12), append with dash and ignore extra members (RFC A.11, A.16)
+// R3: Support: - `add` (object member or array insertion, replacing an ...
+//     -> move an object member (RFC A.6), copy is deep and independent, move an array element (RFC
+//       A.7)
+// R4: An error aborts the whole patch; the caller's document is never mutated.
+//     -> failed test aborts the whole patch, add to a nonexistent parent fails (RFC A.12), append
+//       with dash and ignore extra members (RFC A.11, A.16)
+//
 // Vectors are the RFC 6902 Appendix A examples plus pointer edge cases.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

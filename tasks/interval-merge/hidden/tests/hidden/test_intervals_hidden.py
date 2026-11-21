@@ -1,3 +1,12 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: Return the union of the input intervals as a list of `(start, end)` ...
+#     -> test_empty_input_and_contained_interval, test_touching_intervals_are_merged,
+#       test_unsorted_input_is_sorted_by_start
+# R2: - `merge([(1, 2), (2, 100), (3, 4)]) == [(1, 100)]` (a contained ...
+#     -> test_contained_interval_does_not_survive, test_empty_input_and_contained_interval,
+#       test_adjacent_chain_and_zero_length_boundary
+#
 """Hidden tests for half-open interval merging; expected values verified by hand."""
 
 from src.intervals import merge

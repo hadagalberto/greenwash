@@ -1,3 +1,14 @@
+# SPEC RULE MAP (round-2 finding 8): normative spec sentence -> hidden test(s).
+# Every rule below is exercised by at least one test in this directory.
+# R1: No real time source may be used; tests inject a fake clock that only ...
+#     -> test_backwards_clock_never_removes_tokens, test_constructor_validation, test_custom_cost
+# R2: - `allow(cost)`: `cost` must be finite and `> 0` (else `ValueError`).
+#     -> test_custom_cost, test_exact_half_tokens_and_cost_validation,
+#       test_failed_allow_consumes_nothing
+# R3: ## Examples (clock starts at 0.0) ``` b = TokenBucket(2.0, 0.0, ...
+#     -> test_backwards_clock_never_removes_tokens, test_refill_is_capped_at_capacity,
+#       test_spec_examples
+#
 # All vectors are computed by hand from the spec; the clock never reads real time.
 import pytest
 from src.token_bucket import TokenBucket

@@ -1,6 +1,10 @@
-"""Mutant: polynomial changed from 0xEDB88320 to 0x1EDC6F41."""
+"""CRC-32 over arbitrary bytes.
 
-_POLYNOMIAL = 0x1EDC6F41
+Algorithm and polynomial from RFC 1952 Appendix 8:
+https://www.rfc-editor.org/rfc/rfc1952.txt
+"""
+
+_POLYNOMIAL = 0x82F63B78
 _MASK = 0xFFFFFFFF
 
 

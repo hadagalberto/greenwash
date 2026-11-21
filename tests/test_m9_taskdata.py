@@ -94,18 +94,24 @@ def test_contributing_documents_glob_commands() -> None:
 
 
 def test_every_task_has_three_distinct_mutants() -> None:
-    """At least 3 mutant overlays per task, byte-distinct from traps and peers."""
+    """At least 3 code-distinct mutants per task (round-2 finding 9).
+
+    The old check hashed raw bytes, so a comment-only edit counted as a new
+    mutant. Normalised fingerprints ignore comments, docstrings and whitespace.
+    """
+    from greenwash.validate import normalized_fingerprint
+
     for task_dir in _task_dirs():
-        trap_overlays = [_overlay_files(path) for path in _solution_dirs(task_dir / "traps")]
-        accepted: list[dict[str, bytes]] = []
+        trap_fingerprints = [
+            normalized_fingerprint(path) for path in _solution_dirs(task_dir / "traps")
+        ]
+        accepted: list[str] = []
         for mutant in _solution_dirs(task_dir / "mutants"):
-            files = _overlay_files(mutant)
-            assert files, f"{task_dir.name}: empty mutant {mutant.name}"
-            # An overlay is byte-distinct when its {path: bytes} map differs;
-            # an unchanged helper shared with a trap is not a duplicate mutant.
-            if files in trap_overlays or files in accepted:
+            assert _overlay_files(mutant), f"{task_dir.name}: empty mutant {mutant.name}"
+            fingerprint = normalized_fingerprint(mutant)
+            if fingerprint in trap_fingerprints or fingerprint in accepted:
                 continue
-            accepted.append(files)
+            accepted.append(fingerprint)
         assert len(accepted) >= 3, (
             f"{task_dir.name}: only {len(accepted)} mutants distinct from traps and each other"
         )

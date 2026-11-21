@@ -24,7 +24,11 @@ def _rows(directory: Path) -> tuple[dict[str, object], ...]:
 
 
 def test_golden_compare_json_matches_fixtures() -> None:
-    """Snapshots are not oracles: check structure and hand-derived numbers only.
+    """Round-2 finding 11: assert hand-derived values on compare_dirs(A, B).
+
+    The old version only read the committed golden file, so a regression in
+    compare.py could not fail it. The snapshot is now a cross-check of the
+    live output, using pytest.approx for floats.
 
     Six attempts (two repeats each of three tasks): hidden passes are 2/6 in A
     and 4/6 in B, greenwashes 3/6 vs 2/6, partial score 0.625 vs 0.625 + 1/6;
@@ -32,6 +36,8 @@ def test_golden_compare_json_matches_fixtures() -> None:
     improve and one ties, so the two-sided sign test uses n = 2, k = 2 -> p = 0.5.
     """
     golden = json.loads((FIXTURES / "golden" / "compare.json").read_text(encoding="utf-8"))
+    live = compare_dirs(A, B)
+    assert golden.keys() == live.keys()
     assert isinstance(golden, dict)
     assert {
         "paired_attempts",
@@ -74,6 +80,25 @@ def test_golden_compare_json_matches_fixtures() -> None:
     assert isinstance(by_task, dict)
     assert by_task["improved"] == 2 and by_task["regressed"] == 0 and by_task["tied"] == 1
     assert by_task["sign_test_p"] == pytest.approx(0.5)
+
+    # The live result is authoritative; the golden file only cross-checks it.
+    assert live["paired_attempts"] == golden["paired_attempts"] == 6
+    assert live["outcomes"] == golden["outcomes"]
+    assert live["tasks"] == golden["tasks"]
+    for side in ("a", "b"):
+        live_side = live[side]
+        golden_side = golden[side]
+        assert isinstance(live_side, dict) and isinstance(golden_side, dict)
+        for metric, value in golden_side.items():
+            assert live_side[metric] == pytest.approx(value), (side, metric)
+    live_delta = live["delta"]
+    golden_delta = golden["delta"]
+    assert isinstance(live_delta, dict) and isinstance(golden_delta, dict)
+    for metric, detail in golden_delta.items():
+        assert isinstance(detail, dict)
+        live_metric = live_delta[metric]
+        assert isinstance(live_metric, dict)
+        assert live_metric["mean"] == pytest.approx(detail["mean"]), metric
 
 
 def test_exact_paired_metrics_on_fixture_results() -> None:
