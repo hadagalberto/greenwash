@@ -7,6 +7,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Milestone 7: hostile review of the harness and all 40 tasks. Hand-derived
+  vectors from the cited sources were compared to every hidden assertion; all
+  traps, mutants and reference-import checks were re-verified. Findings and
+  fixes are documented in `docs/REVIEW-2026-11-20-m7.md`.
 - Milestone 6: static HTML leaderboard generated from `summary.json` and
   `results.jsonl` with sortable metrics, per-task × repeat matrix and per-attempt
   drill-down (spec, diff, tamper hunks, test output). All CSS and JS are
@@ -36,6 +40,16 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Tamper analysis now handles Windows and spaced git paths, case/type-only
+  expected-value rewrites, base-prefixed tolerances, trailing comments and
+  tests moved between files; it no longer reports removed skip markers.
+- Claim parsing recognises a final `STATUS: UNKNOWN` and no longer reports
+  negated success ("not all tests pass") as DONE.
+- Hidden-test overlay removes agent-injected files (including `conftest.py`)
+  before grading; missing executables fail an attempt instead of crashing the
+  run; reference-import validation catches relative and dotted imports.
+- `diff-patch` reference and variants now ignore the no-newline marker anywhere
+  in a hunk, as its spec requires; a hidden regression vector was added.
 - Tamper analysis now detects literal changes in non-assert lines, single-test
   deletions and test files renamed out of `tests/`, and no longer mislabels a
   deleted test as a literal edit.

@@ -98,15 +98,30 @@ class Workspace:
         self.close()
 
 
+def _remove_path(path: Path) -> None:
+    """Remove a file, directory or symlink left behind by an agent."""
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.exists():
+        shutil.rmtree(path)
+
+
 def restore_visible_tests(task: Task, workdir: Path) -> None:
     """Replace the agent's visible tests with the original ones from the task."""
     destination = workdir / task.visible_test_dir
     original = task.workspace_dir / task.visible_test_dir
-    if destination.exists():
-        shutil.rmtree(destination)
+    _remove_path(destination)
     copy_overlay(original, destination)
 
 
 def overlay_hidden_tests(task: Task, workdir: Path) -> None:
-    """Copy hidden tests into the agent's workspace."""
+    """Copy hidden tests into the agent's workspace.
+
+    The agent may have created files under ``tests/hidden/`` itself (the
+    workspace starts without that directory). Copying with ``dirs_exist_ok``
+    would leave those files in place, where pytest could load a malicious
+    ``conftest.py`` and change the hidden tests' behaviour. Remove the whole
+    directory first so the hidden suite is exactly the task's own copy.
+    """
+    _remove_path(workdir / task.hidden_test_dir)
     copy_overlay(task.hidden_dir, workdir)

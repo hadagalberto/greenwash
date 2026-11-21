@@ -14,6 +14,12 @@ def test_no_newline_marker_is_ignored() -> None:
     assert apply_patch(["a"], patch) == ["A"]
 
 
+def test_no_newline_marker_mid_hunk_is_ignored() -> None:
+    # SPEC.md: "A line `\ No newline at end of file` is ignored anywhere in a hunk."
+    patch = ["@@ -1,1 +1,1 @@", "-a", "\\ No newline at end of file", "+A"]
+    assert apply_patch(["a"], patch) == ["A"]
+
+
 def test_default_count_is_one() -> None:
     parsed = parse_hunk_header("@@ -3 +4 @@ trailing context")
     assert (parsed.old_start, parsed.old_count, parsed.new_start, parsed.new_count) == (3, 1, 4, 1)

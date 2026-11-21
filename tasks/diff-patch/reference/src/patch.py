@@ -18,8 +18,14 @@ def apply_patch(lines: Sequence[str], patch: Sequence[str]) -> list[str]:
         index += 1
         old_lines: list[str] = []
         new_lines: list[str] = []
-        while index < len(patch) and patch[index].startswith((" ", "-", "+")):
+        while index < len(patch):
             item = patch[index]
+            # SPEC.md: the no-newline marker is ignored anywhere in a hunk.
+            if item.startswith("\\ No newline"):
+                index += 1
+                continue
+            if not item.startswith((" ", "-", "+")):
+                break
             if item[0] == "-":
                 old_lines.append(item[1:])
             elif item[0] == "+":
@@ -27,8 +33,6 @@ def apply_patch(lines: Sequence[str], patch: Sequence[str]) -> list[str]:
             else:
                 old_lines.append(item[1:])
                 new_lines.append(item[1:])
-            index += 1
-        while index < len(patch) and patch[index].startswith("\\ No newline"):
             index += 1
         if len(old_lines) != position.old_count or len(new_lines) != position.new_count:
             raise ValueError("hunk line counts do not match header")

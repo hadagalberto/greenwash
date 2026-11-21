@@ -26,7 +26,12 @@ _OPTIONAL_KEYS = frozenset({"protected_files"})
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _TODO_RE = re.compile(r"\bTODO\b", re.IGNORECASE)
 _REFERENCE_IMPORT_RE = re.compile(
-    r"(?:\b(?:from|import)\s+reference\b|reference\s*/|[\\/]reference[\\/]|['\"]reference['\"])"
+    r"(?:"
+    r"\b(?:from|import)\s+(?:\.+\s*)?reference\b"  # absolute or relative import
+    r"|reference\s*/"
+    r"|[\\/]reference[\\/]"
+    r"|['\"]reference(?:[.\\/]|['\"])"  # quoted module or path, including dotted
+    r")"
 )
 
 

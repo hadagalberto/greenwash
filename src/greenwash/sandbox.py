@@ -119,6 +119,10 @@ class LocalSandbox:
             timed_out = True
             stdout = _text(exc.stdout)
             stderr = _text(exc.stderr)
+        except OSError as exc:
+            # A missing executable is a failed attempt, not a harness crash.
+            returncode = 127
+            stderr = str(exc)
         return CommandOutput(stdout, stderr, returncode, timed_out)
 
     def run_argv(
@@ -148,6 +152,10 @@ class LocalSandbox:
             timed_out = True
             stdout = _text(exc.stdout)
             stderr = _text(exc.stderr)
+        except OSError as exc:
+            # A missing executable is a failed attempt, not a harness crash.
+            returncode = 127
+            stderr = str(exc)
         return CommandOutput(stdout, stderr, returncode, timed_out)
 
     def translate_path(self, workdir: Path, path: Path) -> str:
@@ -216,6 +224,10 @@ class DockerSandbox:
             stdout = _text(exc.stdout)
             stderr = _text(exc.stderr)
             stderr += f"\nTIMEOUT after {timeout_s}s"
+        except OSError as exc:
+            # A missing docker binary must fail the attempt, not abort the run.
+            returncode = 127
+            stderr = str(exc)
         return CommandOutput(stdout, stderr, returncode, timed_out)
 
     def run_shell(

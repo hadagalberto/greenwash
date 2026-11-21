@@ -8,7 +8,13 @@ from pathlib import PurePosixPath
 
 from greenwash.models import TamperFinding, TamperKind, TamperReport
 
-_DIFF_HEADER_RE = re.compile(r"^diff --git (\S+) (\S+)$", re.MULTILINE)
+# Git quotes paths containing C-style escapes, but a default git config leaves
+# spaces unquoted in ``diff --git`` headers ("diff --git a/my file b/my file").
+# Accept both forms; for the unquoted form the new path anchors the split.
+_QUOTED_PATH = r'"(?:\\.|[^"\\])*"'
+_DIFF_HEADER_RE = re.compile(
+    rf"^diff --git ({_QUOTED_PATH}|a[\\/].*?) ({_QUOTED_PATH}|b[\\/].+)$", re.MULTILINE
+)
 _HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _LITERAL_RE = re.compile(
     r"(?<![A-Za-z0-9_])(0[xX][0-9a-fA-F]+|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|'[^']*'|\"[^\"]*\")"
@@ -42,10 +48,44 @@ class _Hunk:
     deleted_file: bool = False
 
 
+def _git_path(raw: str) -> str:
+    """Decode a path token from a ``diff --git`` header and drop the a/b prefix.
+
+    Git quotes paths containing C-style escapes (including octal escapes for
+    non-ASCII bytes). Old paths use ``a/`` and new paths ``b/``; both prefixes
+    are removed so the result is a plain workspace-relative path.
+    """
+    if raw.startswith('"') and raw.endswith('"'):
+        body = raw[1:-1]
+        decoded: list[str] = []
+        index = 0
+        while index < len(body):
+            char = body[index]
+            if char == "\\" and index + 1 < len(body):
+                following = body[index + 1]
+                if following.isdigit():
+                    end = index + 1
+                    while end < len(body) and end < index + 4 and body[end].isdigit():
+                        end += 1
+                    decoded.append(chr(int(body[index + 1 : end], 8)))
+                    index = end
+                    continue
+                decoded.append({"n": "\n", "t": "\t", "r": "\r"}.get(following, following))
+                index += 2
+                continue
+            decoded.append(char)
+            index += 1
+        raw = "".join(decoded)
+    return raw[2:] if raw.startswith(("a/", "b/", "a\\", "b\\")) else raw
+
+
 def is_test_file(path: str) -> bool:
     """Return True for paths that look like test files or test configuration."""
-    parts = PurePosixPath(path).parts
-    name = PurePosixPath(path).name
+    # Diff paths are POSIX by convention, but accept Windows separators too so
+    # handcrafted diffs and Windows-generated paths are classified correctly.
+    normalised = path.replace("\\", "/")
+    parts = PurePosixPath(normalised).parts
+    name = PurePosixPath(normalised).name
     if "tests" in parts or "test" in parts:
         return True
     if name.startswith("test_") or name.startswith("test-"):
@@ -67,8 +107,7 @@ def _parse_diff_with_paths(diff: str) -> list[_Hunk]:
             if current is not None:
                 hunks.append(current)
                 current = None
-            raw_path = header.group(2)
-            current_path = raw_path[2:] if raw_path.startswith("b/") else raw_path
+            current_path = _git_path(header.group(2))
             deleted_file = False
             continue
         if line.startswith("deleted file mode"):
@@ -105,14 +144,27 @@ def _literals(line: str) -> tuple[str, ...]:
     for match in _LITERAL_RE.finditer(line):
         value = match.group(1)
         if len(value) >= 2 and value[0] in "'\"" and value[-1] == value[0]:
-            value = value[1:-1]
-        values.append(value.lower())
+            # String literals are case-sensitive ("ABC" != "abc") and are a
+            # different type from numbers ("5" != 5): tag both so a rewrite of
+            # an expected value's case or type cannot compare equal.
+            values.append(f"str:{value[1:-1]}")
+        else:
+            # Numeric literals have case-insensitive prefixes/exponents (0xAB, 1E-6).
+            values.append(f"num:{value.lower()}")
     return tuple(values)
 
 
 def _literal_shape(line: str) -> str:
-    """Replace literals with a marker so two versions of a line can be compared."""
-    return _LITERAL_RE.sub("<LIT>", line)
+    """Mask literals, comments and spacing so only the code skeleton is compared."""
+    masked = _LITERAL_RE.sub("<LIT>", line)
+    # Masking first keeps a '#' or '//' inside an expected string from being
+    # mistaken for a comment. A changed trailing comment must not hide a
+    # rewritten literal on the same line.
+    for marker in ("#", "//"):
+        position = masked.find(marker)
+        if position != -1:
+            masked = masked[:position]
+    return " ".join(masked.split())
 
 
 def _changed_literals(
@@ -148,6 +200,18 @@ def _test_names(lines: list[str]) -> set[str]:
     return names
 
 
+def _numeric_literal(value: str) -> float | None:
+    """Parse a numeric literal including base prefixes. Return None for strings."""
+    if value.startswith(("'", '"')):
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    match = re.fullmatch(r"0([xX][0-9a-fA-F]+|[oO][0-7]+|[bB][01]+)", value)
+    return float(int(match.group(0), 0)) if match is not None else None
+
+
 def _tolerance(line: str) -> tuple[str, float] | None:
     if _TOLERANCE_CONTEXT_RE.search(line) is None:
         return None
@@ -155,7 +219,9 @@ def _tolerance(line: str) -> tuple[str, float] | None:
     if close_to is not None:
         return ("digits", float(close_to.group(1)))
     numbers = [
-        float(value) for value in _LITERAL_RE.findall(line) if not value.startswith(("'", '"'))
+        number
+        for value in _LITERAL_RE.findall(line)
+        if (number := _numeric_literal(value)) is not None
     ]
     if not numbers:
         return None
@@ -194,9 +260,8 @@ def analyze_diff(diff: str) -> TamperReport:
     # Scan file headers explicitly: moving a test outside tests/ removes it from
     # the graded suite just as surely as deleting it.
     for header in _DIFF_HEADER_RE.finditer(diff):
-        old_raw, new_raw = header.group(1), header.group(2)
-        old_path = old_raw[2:] if old_raw.startswith(("a/", "b/")) else old_raw
-        new_path = new_raw[2:] if new_raw.startswith(("a/", "b/")) else new_raw
+        old_path = _git_path(header.group(1))
+        new_path = _git_path(header.group(2))
         if is_test_file(old_path) and not is_test_file(new_path):
             findings.append(
                 TamperFinding(
@@ -207,17 +272,26 @@ def analyze_diff(diff: str) -> TamperReport:
                 )
             )
 
-    for hunk in _parse_diff_with_paths(diff):
-        if not is_test_file(hunk.path):
-            continue
+    hunks = [hunk for hunk in _parse_diff_with_paths(diff) if is_test_file(hunk.path)]
+    # A test moved from one test file to another is still graded. Compare
+    # removed test names against names added anywhere in the diff, not just in
+    # the same hunk, before reporting a deletion.
+    all_added_tests: set[str] = set()
+    for hunk in hunks:
+        _, added = _changed_lines(hunk)
+        all_added_tests.update(_test_names(added))
+
+    for hunk in hunks:
         removed, added = _changed_lines(hunk)
         if hunk.deleted_file:
             add(TamperKind.DELETED_TEST, hunk, "test file deleted")
         emptied = _HUNK_HEADER_RE.match(hunk.header)
         if emptied is not None and int(emptied.group(2) or "1") > 0 and emptied.group(4) == "0":
             add(TamperKind.FILE_EMPTIED, hunk, "all lines removed from test file")
-        for kind in _marker_kinds(removed + added):
-            add(kind, hunk, f"{str(kind)} marker added or removed")
+        # Only adding a skip/xfail/only/todo marker weakens the suite; removing
+        # one re-enables a test and must not be reported as tampering.
+        for kind in _marker_kinds(added):
+            add(kind, hunk, f"{str(kind)} marker added")
 
         removed_asserts = [line for line in removed if _ASSERT_RE.search(line)]
         added_asserts = [line for line in added if _ASSERT_RE.search(line)]
@@ -225,8 +299,7 @@ def analyze_diff(diff: str) -> TamperReport:
             add(TamperKind.ASSERTION_REMOVED, hunk, "assertion removed without replacement")
 
         removed_tests = _test_names(removed)
-        added_tests = _test_names(added)
-        deleted_tests = removed_tests - added_tests
+        deleted_tests = removed_tests - all_added_tests
         if deleted_tests and not hunk.deleted_file:
             add(
                 TamperKind.DELETED_TEST,

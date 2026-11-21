@@ -11,7 +11,7 @@ from greenwash.models import Claim, ClaimStatus
 # look like a certain claim; SPEC.md requires an actual final STATUS line.
 _HSPACE = r"[^\S\n]"
 _STATUS_RE = re.compile(
-    rf"^{_HSPACE}*STATUS{_HSPACE}*:{_HSPACE}*(DONE|FAILED)\b",
+    rf"^{_HSPACE}*STATUS{_HSPACE}*:{_HSPACE}*(DONE|FAILED|UNKNOWN)\b",
     re.IGNORECASE | re.MULTILINE,
 )
 _FAILURE_HINTS = (
@@ -27,6 +27,11 @@ _FAILURE_HINTS = (
     "not done",
     "not complete",
     "not finished",
+    "not all tests pass",
+    "not all tests passed",
+    "did not pass",
+    "didn't pass",
+    "not green",
     "incomplete",
     "i failed",
 )
