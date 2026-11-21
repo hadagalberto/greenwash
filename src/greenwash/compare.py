@@ -9,6 +9,7 @@ unit of resampling for a paired design.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -107,7 +108,19 @@ def _key(row: dict[str, object], label: str) -> tuple[str, int]:
 
 
 def _mean(values: list[float]) -> float:
-    return sum(values) / len(values) if values else 0.0
+    # Neumaier-style compensated summation via fsum: builtin sum is not
+    # correctly rounded on every supported Python (finding 20 / CI-B).
+    return math.fsum(values) / len(values) if values else 0.0
+
+
+def _sign_test_p(improved: int, regressed: int) -> float:
+    """Two-sided exact binomial sign test; ties are excluded from n."""
+    n = improved + regressed
+    if n == 0:
+        return 1.0
+    successes = max(improved, regressed)
+    tail: float = math.fsum(float(math.comb(n, i)) for i in range(successes, n + 1)) / 2**n
+    return min(1.0, 2.0 * tail)
 
 
 def pair_records(
@@ -182,13 +195,66 @@ def pair_records(
     }
 
 
+def compare_tasks(
+    a_records: tuple[dict[str, object], ...], b_records: tuple[dict[str, object], ...]
+) -> dict[str, object]:
+    """Compare task-level means; repeats are exchangeable, not paired by index.
+
+    The legacy ``pair_records`` result is unchanged. This result adds a sign
+    test whose unit is the task, so repeated attempts cannot inflate n.
+    """
+    a_values: dict[str, list[float]] = {}
+    b_values: dict[str, list[float]] = {}
+    for label, source, target in (("a", a_records, a_values), ("b", b_records, b_values)):
+        for index, row in enumerate(source, start=1):
+            task_id, _ = _key(row, f"{label} record {index}")
+            target.setdefault(task_id, []).append(_hidden(row))
+
+    rows: list[dict[str, object]] = []
+    improved = regressed = tied = 0
+    for task_id in sorted(set(a_values) & set(b_values)):
+        a_mean = _mean(a_values[task_id])
+        b_mean = _mean(b_values[task_id])
+        if b_mean > a_mean:
+            direction = "improved"
+            improved += 1
+        elif b_mean < a_mean:
+            direction = "regressed"
+            regressed += 1
+        else:
+            direction = "tie"
+            tied += 1
+        rows.append(
+            {
+                "task_id": task_id,
+                "attempts": len(a_values[task_id]),
+                "a_mean": a_mean,
+                "b_mean": b_mean,
+                "delta": b_mean - a_mean,
+                "direction": direction,
+            }
+        )
+    return {
+        "measure": "hidden_pass_rate",
+        "tasks": rows,
+        "improved": improved,
+        "regressed": regressed,
+        "tied": tied,
+        "sign_test_p": _sign_test_p(improved, regressed),
+        "unpaired_a": sorted(set(a_values) - set(b_values)),
+        "unpaired_b": sorted(set(b_values) - set(a_values)),
+    }
+
+
 def compare_dirs(a: Path, b: Path) -> dict[str, object]:
     """Load two result directories and return their paired comparison."""
     try:
         left, right = load_report(a), load_report(b)
     except ReportError as exc:
         raise CompareError(str(exc)) from exc
-    return pair_records(left.records, right.records)
+    result = pair_records(left.records, right.records)
+    result["by_task"] = compare_tasks(left.records, right.records)
+    return result
 
 
 def write_compare(payload: dict[str, object], out_dir: Path) -> Path:

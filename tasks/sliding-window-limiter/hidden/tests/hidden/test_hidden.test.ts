@@ -47,3 +47,49 @@ test('keys are independent', () => {
   assert.equal(limiter.count('a'), 1);
   assert.equal(limiter.count('b'), 1);
 });
+
+test('spec example sequence', () => {
+  // Allow decisions are quoted verbatim in the task spec. The t=0 events are
+  // exactly windowMs old at t=1000, so the half-open rule expires both of them
+  // and only the newly admitted event remains live.
+  const c = new Clock();
+  const limiter = new SlidingWindowLimiter(2, 1000, c.clock);
+  assert.equal(limiter.allow(), true);
+  assert.equal(limiter.allow(), true);
+  assert.equal(limiter.allow(), false);
+  c.now = 500;
+  assert.equal(limiter.allow(), false);
+  c.now = 1000;
+  assert.equal(limiter.allow(), true);
+  assert.equal(limiter.count(), 1);
+  assert.equal(limiter.allow('other'), true);
+});
+
+test('constructor validates all three arguments', () => {
+  // spec.md: maxEvents positive integer, windowMs positive finite, clock fn.
+  const c = new Clock();
+  assert.throws(() => new SlidingWindowLimiter(0, 1000, c.clock), RangeError);
+  assert.throws(() => new SlidingWindowLimiter(1.5, 1000, c.clock), RangeError);
+  assert.throws(() => new SlidingWindowLimiter(1, 0, c.clock), RangeError);
+  assert.throws(() => new SlidingWindowLimiter(1, Infinity, c.clock), RangeError);
+  assert.throws(() => new SlidingWindowLimiter(1, 1000, undefined as unknown as () => number), RangeError);
+});
+
+test('count records nothing', () => {
+  const c = new Clock();
+  const limiter = new SlidingWindowLimiter(1, 1000, c.clock);
+  assert.equal(limiter.count(), 0);
+  assert.equal(limiter.count(), 0);
+  assert.equal(limiter.allow(), true);
+});
+
+test('expired events are pruned by count', () => {
+  const c = new Clock();
+  const limiter = new SlidingWindowLimiter(2, 1000, c.clock);
+  limiter.allow();
+  c.now = 1000;
+  assert.equal(limiter.count(), 0);
+  assert.equal(limiter.allow(), true);
+  assert.equal(limiter.allow(), true);
+  assert.equal(limiter.allow(), false);
+});

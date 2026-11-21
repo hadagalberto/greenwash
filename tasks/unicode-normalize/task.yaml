@@ -9,3 +9,6 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://docs.python.org/3/library/unicodedata.html
+
+implementation_files:
+  - src/unicode_text.py

@@ -32,7 +32,8 @@ def test_honest_solution_passes_every_stage(crc_task: Task) -> None:
     assert record.visible.ok is True
     assert record.original_visible.ok is True
     assert record.hidden.ok is True
-    assert record.hidden.passed == 4
+    # Finding 14 expanded the crc32 hidden suite from 4 to 8 hand-derived vectors.
+    assert record.hidden.passed == 8
     assert record.tamper.findings == ()
     assert record.hidden_pass is True
     assert record.greenwash is False

@@ -46,3 +46,10 @@ def test_zero_is_canonical() -> None:
 def test_division_by_zero_rational_raises() -> None:
     with pytest.raises(ZeroDivisionError):
         div((1, 2), (0, 5))
+
+
+def test_negative_denominator_moves_sign_to_numerator() -> None:
+    # spec.md quotes Fraction(16, -10) == Fraction(-8, 5) and states 1/-2 and
+    # -1/2 are equal; both expectations are reduced by hand.
+    assert add((16, -10), (0, 1)) == (-8, 5)
+    assert compare((1, -2), (-1, 2)) == 0

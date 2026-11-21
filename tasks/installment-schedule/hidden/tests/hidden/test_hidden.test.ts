@@ -45,3 +45,21 @@ test('invalid schedule parameters throw', () => {
   assert.throws(() => buildSchedule(1, 0, 0), Error);
   assert.throws(() => buildSchedule(1, -1, 1), Error);
 });
+
+test('money parsing trims and formatting pads to two digits', () => {
+  // spec.md: trim before the decimal regex; -0.50 -> -50; formatCents(1234).
+  assert.equal(parseCents('  -0.50  '), -50);
+  assert.equal(parseCents('12.3'), 1230);
+  assert.equal(formatCents(1234), '12.34');
+  assert.throws(() => formatCents(1.5), Error);
+  assert.throws(() => parseCents('.5'), Error);
+});
+
+test('zero-rate schedule splits principal evenly with no interest', () => {
+  // spec.md example: buildSchedule(900, 0, 3).
+  const rows = buildSchedule(900, 0, 3);
+  assert.deepEqual(rows.map((row) => row.month), [1, 2, 3]);
+  assert.deepEqual(rows.map((row) => row.principalCents), [300, 300, 300]);
+  assert.deepEqual(rows.map((row) => row.interestCents), [0, 0, 0]);
+  assert.deepEqual(rows.map((row) => row.balanceCents), [600, 300, 0]);
+});

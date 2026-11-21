@@ -127,7 +127,8 @@ def test_full_pipeline_produces_exact_metrics(
     base64_record, crc_record, semver_record = records
 
     assert crc_record["hidden_pass"] is True
-    assert crc_record["hidden"]["total"] == 4
+    # Finding 14 expanded the crc32 hidden suite from 4 to 8 hand-derived vectors.
+    assert crc_record["hidden"]["total"] == 8
     assert base64_record["hidden_pass"] is False
     assert base64_record["visible_pass"] is True
     assert base64_record["greenwash"] is True

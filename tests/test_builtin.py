@@ -59,7 +59,9 @@ def test_full_tool_loop_accounts_usage_and_parses_final_claim(
         requests = list(server.requests)
 
     assert (tmp_path / "src" / "x.py").read_text(encoding="utf-8") == "value = 1\n"
-    assert str(result.claim.status) == "DONE" and result.claim.certain is True
+    # Finding 8: the fake final message puts "all tests pass" AFTER the STATUS
+    # line, so the claim is a fuzzy "done" hint, not a certain STATUS claim.
+    assert str(result.claim.status) == "DONE" and result.claim.certain is False
     assert "value = 1" in result.transcript
     assert "[tool:list_dir]" in result.transcript
     assert "exit_code=0" in result.transcript

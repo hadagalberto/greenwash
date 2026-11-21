@@ -5,7 +5,10 @@ category: data structures
 difficulty: medium
 time_budget_s: 120
 test_commands:
-  visible: node --experimental-strip-types --test tests/visible
-  hidden: node --experimental-strip-types --test tests/hidden
+  visible: node --experimental-strip-types --test "tests/visible/**/*.test.ts"
+  hidden: node --experimental-strip-types --test "tests/hidden/**/*.test.ts"
 sources:
   - https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU)
+
+implementation_files:
+  - src/lru.ts

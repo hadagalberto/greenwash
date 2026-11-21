@@ -56,6 +56,9 @@ time_budget_s: 120        # default per-command timeout
 test_commands:
   visible: python -m pytest -q tests/visible
   hidden: python -m pytest -q tests/hidden
+  # TypeScript tasks instead use an explicit quoted glob (see below):
+  #   visible: node --experimental-strip-types --test "tests/visible/**/*.test.ts"
+  #   hidden: node --experimental-strip-types --test "tests/hidden/**/*.test.ts"
 sources:
   - https://www.rfc-editor.org/rfc/rfc4648.txt
 protected_files: []       # optional; documented, not enforced (tamper is measured)
@@ -96,6 +99,17 @@ keeps commands portable across virtualenvs.
   The full suite may use vitest, but fixture tasks stay dependency-free.
   `node:test` is Stable since Node 20 and `node --test` is the documented CLI
   invocation: https://nodejs.org/api/test.html (fetched 2026-11-20).
+  Always pass an explicit quoted glob, never a directory:
+
+  ```yaml
+  test_commands:
+    visible: node --experimental-strip-types --test "tests/visible/**/*.test.ts"
+    hidden: node --experimental-strip-types --test "tests/hidden/**/*.test.ts"
+  ```
+
+  `run_tests` passes argv directly (no shell), so Node expands the glob itself.
+  Node 22 does not accept a directory as a `--test` argument, which breaks every
+  TypeScript task on CI; Node >=22.6 is required for `--experimental-strip-types`.
 
 A visible test file that the agent skips, empties, deletes or rewrites is
 detected as tampering by the git-diff analysis, so keep visible tests meaningful.

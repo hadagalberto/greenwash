@@ -10,3 +10,6 @@ test_commands:
 sources:
   - https://en.wikipedia.org/wiki/International_Article_Number
   - https://www.gs1.org/how-calculate-check-digit-manually
+
+implementation_files:
+  - src/ean.py

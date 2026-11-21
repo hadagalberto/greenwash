@@ -24,6 +24,11 @@ VECTORS = (
     ("0", 3, "0.000"),
     ("2", 0, "2"),
     ("1", 2, "1.00"),
+    # spec.md: "The string '0' never becomes '-0'". Hand-derived from the
+    # magnitude-then-sign rule: a zero result drops the restored minus sign.
+    ("-0.004", 2, "0.00"),
+    ("-0.4", 0, "0"),
+    ("-0.5", 0, "0"),
 )
 
 
@@ -55,3 +60,20 @@ def test_negative_magnitude_tie_uses_even_digit() -> None:
 
 def test_carry_propagates_through_nines() -> None:
     assert round_half_even("9.999", 1) == "10.0"
+
+
+def test_negative_zero_is_never_emitted() -> None:
+    # spec.md: restoring the sign only for a non-zero result means "-0" cannot
+    # be produced for any precision. Expected strings are worked out by hand.
+    assert round_half_even("-0.004", 2) == "0.00"
+    assert round_half_even("-0.4", 0) == "0"
+    assert round_half_even("-0.5", 0) == "0"
+
+
+def test_wikipedia_tie_examples() -> None:
+    # spec.md quotes Wikipedia's round-half-to-even examples (fetched
+    # 2026-11-20): 23.5 -> 24, 24.5 -> 24, -23.5 -> -24, -24.5 -> -24.
+    assert round_half_even("23.5", 0) == "24"
+    assert round_half_even("24.5", 0) == "24"
+    assert round_half_even("-23.5", 0) == "-24"
+    assert round_half_even("-24.5", 0) == "-24"

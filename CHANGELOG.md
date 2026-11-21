@@ -7,6 +7,20 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Milestone 9: independent-review remediation. Hidden tests now run in a fresh
+  harness-owned directory with only declared implementation files and pristine
+  test config; the harness reads results from JUnit reports outside the agent's
+  tree. The graded diff is computed in Python against a pristine snapshot, so
+  agent git config, replace refs and ignore files cannot hide edits or execute
+  host commands. Escaping symlinks/junctions are rejected. Tamper detection
+  covers config injection, tautologies and framework interference without
+  false positives on comments, quote style, CRLF or test renames. CLI adapters
+  honour `--model` and stream prompts via stdin; agent timeouts kill the whole
+  process tree; the local sandbox uses an allow-listed environment. Tamper
+  rates are per attempt, CIs are cluster-aware by task, claim parsing uses only
+  the final message, transcripts are persisted, and the Docker sandbox ships a
+  Dockerfile with Python + Node and isolation flags. Full report:
+  `docs/REVIEW-FIXES.md`.
 - Milestone 8: line-by-line SPEC audit with a status checklist in
   `docs/SPEC-CHECKLIST.md`; every CLI flag, output, test, CI job and README
   example verified by running it. Added a runnable scripted-agent example

@@ -9,3 +9,7 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://www.rfc-editor.org/rfc/rfc4648.txt
+
+implementation_files:
+  - src/codec.py
+  - src/pagination.py

@@ -29,3 +29,17 @@ test('date value ignores nowMs', () => {
   const date = 'Wed, 21 Oct 2015 07:28:00 GMT';
   assert.equal(parseRetryAfter(date, 0), parseRetryAfter(date, 123456789));
 });
+
+test('spec examples for seconds and IMF-fixdate', () => {
+  // Both expected values are quoted verbatim in the task spec.
+  assert.equal(parseRetryAfter('2', 0), 2000);
+  assert.equal(parseRetryAfter('Sun, 06 Nov 1994 08:49:37 GMT', 0), 784111777000);
+});
+
+test('non-string header throws', () => {
+  assert.throws(() => parseRetryAfter(42 as unknown as string, 0), Error);
+});
+
+test('impossible date is rejected by the canonical round-trip check', () => {
+  assert.throws(() => parseRetryAfter('Sun, 32 Nov 1994 08:49:37 GMT', 0), Error);
+});

@@ -74,3 +74,42 @@ def test_validation_of_retry_parameters() -> None:
             clock=Clock(),
             sleep=lambda _: None,
         )
+
+
+def test_first_retry_delay_is_base_and_growth_is_exponential() -> None:
+    # spec.md: retry_number 1 means base; factor 3 gives 2.5, 7.5, 22.5.
+    assert compute_delay(1, 2.5, 3.0, 100.0) == 2.5
+    assert compute_delay(2, 2.5, 3.0, 100.0) == 7.5
+    assert compute_delay(3, 2.5, 3.0, 100.0) == 22.5
+
+
+def test_compute_delay_validation_covers_cap_and_integer_rule() -> None:
+    # spec.md: retry_number is a positive integer, base > 0, factor >= 1, cap > 0.
+    with pytest.raises(ValueError):
+        compute_delay(1, 1.0, 2.0, 0.0)
+    with pytest.raises(ValueError):
+        compute_delay(1.5, 1.0, 2.0, 10.0)
+    with pytest.raises(ValueError):
+        compute_delay(True, 1.0, 2.0, 10.0)
+
+
+def test_success_returns_result_and_only_sleeps_for_failures() -> None:
+    sleeps: list[float] = []
+    calls = 0
+
+    def operation() -> int:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            raise RuntimeError("not yet")
+        return 42
+
+    clock = Clock()
+    assert (
+        retry(
+            operation, attempts=3, base=1.0, factor=2.0, cap=10.0, clock=clock, sleep=sleeps.append
+        )
+        == 42
+    )
+    assert sleeps == [1.0, 2.0]
+    assert calls == 3

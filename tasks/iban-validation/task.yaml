@@ -10,3 +10,6 @@ test_commands:
 sources:
   - https://en.wikipedia.org/wiki/International_Bank_Account_Number
   - https://www.swift.com/standards/iban
+
+implementation_files:
+  - src/iban.py

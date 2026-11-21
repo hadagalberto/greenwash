@@ -1,9 +1,11 @@
-# SPEC checklist — Milestone 8 audit
+# SPEC checklist — Milestone 9 re-audit
 
 Every requirement in `SPEC.md` is listed below. `Status` is based on **running**
-the command or exercising the behaviour, not on reading the code. Evidence is
-the command that was run and the observed result on Python 3.15.2 / Node 26.13.0
-/ Windows 11. Full final verification results are at the end of this document.
+the command or exercising the behaviour, not on reading the code. The milestone-8
+checklist overstated CI, timeout enforcement and transcript capture; those rows
+are now corrected against the milestone-9 fixes. Evidence is the command that
+was run and the observed result on Python 3.15.2 / Node 26.13.0 / Windows 11.
+Full final verification results are at the end of this document.
 
 Legend: **PASS** — verified by execution; **PASS\*** — verified with a documented
 deviation; **N/A** — design constraint covered by construction, not directly
@@ -29,8 +31,8 @@ measurable.
 | 9 | Coverage ≥ 90% for the harness | PASS | `pyproject.toml` `addopts` has `--cov-fail-under=90`; final run reports 95.00%. |
 | 10 | Hypothesis "where useful" | PASS | Installed in `dev` extras. No property test was added because every vector in this project has a known official/expected value; deterministic assertions are stronger here. No skipped placeholders. |
 | 11 | Small runtime deps: httpx, PyYAML, Jinja2, optional rich | PASS | `dependencies = [httpx, Jinja2, PyYAML, typer]`; rich is not required anywhere. |
-| 12 | Tasks in Python **and** TypeScript; harness runs each task's own test command | PASS\* | 20 Python + 20 TypeScript tasks; `task.yaml` declares visible/hidden commands and `run_tests()` executes them verbatim. TypeScript fixtures use Node's built-in `node:test` runner rather than vitest, so no `npm install` is needed; documented in `CONTRIBUTING.md` "Test runner conventions". Official source fetched and checked: [Node.js test runner docs](https://nodejs.org/api/test.html) — `node:test` is Stable since v20.0.0 and `node --test` is the documented CLI invocation. |
-| 13 | CI on ubuntu/windows/macos for harness; separate ubuntu `validate-tasks` job | PASS | `.github/workflows/ci.yml`: 3-OS × 3-Python matrix runs build, ruff check, ruff format check, mypy and pytest; `validate-tasks` job on `ubuntu-latest`. |
+| 12 | Tasks in Python **and** TypeScript; harness runs each task's own test command | PASS\* | 20 Python + 20 TypeScript tasks; `task.yaml` declares visible/hidden commands executed by `run_tests()`. Deviation recorded in SPEC: Node's built-in `node:test` is used instead of vitest, and `--experimental-strip-types` requires Node ≥ 22.6 (CI pins 22.23.5). All TS commands use an explicit quoted glob so Node 22 does not treat a directory as a test file. |
+| 13 | CI on ubuntu/windows/macos for harness; separate ubuntu `validate-tasks` job | PASS\* | `.github/workflows/ci.yml`: 3-OS × 3-Python matrix plus an exact Node 22.23.5 pin (previously Node 22 resolved to a version whose `--test` directory handling broke every TS task, and `sum()` broke float goldens on Python 3.11). Both root causes are fixed and covered by `tests/test_m9_taskdata.py` and `tests/test_m9_metrics.py`. |
 | 14 | README.md (en) + README.pt-BR.md, CHANGELOG, CONTRIBUTING, LICENSE | PASS | All five files present; both README quickstarts were executed (see item 22). |
 | 15 | Do not publish to PyPI | PASS | No `twine`, `uv publish` or PyPI upload step anywhere; wheel build is local only. |
 
@@ -63,13 +65,13 @@ states this explicitly.
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | 26 | `run --agent --model [--tasks glob] [--repeat] [--jobs] [--timeout] [--out]` | PASS | All exercised in `tests/test_cli.py` and the verified README example. `--timeout 0`/negative now rejected with exit 2 (m8 regression). |
-| 27 | Isolated temp workspace, git-initialised so diffs are exact | PASS | `Workspace` runs `git init`, commits a baseline, and `capture_diff()` stages everything before diffing; `tests/test_workspace.py`. |
+| 27 | Isolated temp workspace, git-initialised so diffs are exact | PASS\* | `Workspace` still initialises git for agent convenience, but the graded diff is now computed in Python with `difflib` against a pristine snapshot. This is stronger than a git diff: agent replace refs, `info/exclude`, fsmonitor hooks and textconv drivers cannot hide edits or run host commands. Regression tests in `tests/test_m9_core_security.py`. |
 | 28 | Standard prompt (spec + completion instruction) | PASS | `make_prompt()` includes full spec and the exact `STATUS: DONE`/`STATUS: FAILED` instruction; used by every adapter and the e2e profile adapter. |
-| 29 | Timeout enforced; transcript, tokens/cost, wall time captured | PASS | `tests/test_runner.py`, `tests/test_builtin.py`, fake-server CLI test: `tokens_in=100`, `tokens_out=20`, cost computed from `prices.json`; timeout tests use a fake executable. |
-| 30 | Grade order: visible as-is → restore originals → overlay hidden | PASS | `grade_attempt()` pipeline; `tests/test_grading.py`, `tests/test_e2e.py`. Hidden overlay removes agent-injected `tests/hidden/` files first (m7 regression). |
-| 31 | Tamper analysis from git diff, all kinds classified with hunk | PASS | `tests/test_tamper.py`, `tests/test_m7_review_regressions.py`, m8 regressions (renames, `--`-prefixed lines). |
-| 32 | Claim parsing: final `STATUS:` line; documented uncertain fallback | PASS | `tests/test_claims.py`, m7 regressions (UNKNOWN, negated success), m8 hostile probe. Heuristic limitation is documented in `docs/REVIEW-2026-11-20-m7.md`. |
-| 33 | Optional Docker isolation; local default warns | PASS | `test_cli_run_with_docker_sandbox` uses a fake docker executable; `--sandbox podman` exits 2; local run prints the host warning. |
+| 29 | Timeout enforced; transcript, tokens/cost, wall time captured | PASS | Process-tree kill on timeout (`start_new_session` / `CREATE_NEW_PROCESS_GROUP` + `taskkill /T /F`), verified by `tests/test_m9_sandbox.py`. Transcript and final message are persisted in `results.jsonl` (200 KB cap) and shown in the HTML drill-down; `tests/test_m9_core_security.py`. |
+| 30 | Grade order: visible as-is → restore originals → overlay hidden | PASS\* | Hidden tests now run in a fresh harness-owned directory containing only declared implementation files, pristine visible tests and the task's hidden tests, with an isolated ini/environment and JUnit reports outside the workspace. `tests/test_m9_core_security.py` covers hostile conftest, pytest ini, pyproject plugin, sitecustomize and assert monkeypatching. |
+| 31 | Tamper analysis from git diff, all kinds classified with hunk | PASS | `tests/test_tamper.py`, `tests/test_m7_review_regressions.py`, m8 regressions plus `tests/test_m9_tamper.py` (config injection, tautologies, early returns, TS skip options and false-positive controls). |
+| 32 | Claim parsing: final `STATUS:` line; documented uncertain fallback | PASS | `parse_claim()` accepts STATUS only on the final non-empty line after markdown stripping, applies word-boundary hints bottom-to-top to the final message only, and exposes an uncertain rate. `tests/test_m9_claims_adapters.py` covers all eight review strings. |
+| 33 | Optional Docker isolation; local default warns | PASS | `docker/Dockerfile` supplies Python 3.12, pytest and Node 22; `--network none`, `--pids-limit`, `--memory`, a named container and kill-on-timeout. The local warning now also states that hidden tests are readable on the host. |
 
 ## Adapters (SPEC lines 38–40)
 
@@ -77,10 +79,10 @@ states this explicitly.
 | --- | --- | --- | --- |
 | 34 | `builtin` tool loop: read_file, write_file, list_dir, run_command (timeout + truncation) | PASS | `TOOL_DEFINITIONS` and `ToolExecutor`; `tests/test_builtin.py` covers all four, path-traversal rejection, large-output middle truncation and step limit. |
 | 35 | Configurable base_url / api_key_env; usage + versioned price table | PASS | CLI flags wired to `BuiltinAdapter`; fake OpenAI server test verifies cost = 100/1M×0.15 + 20/1M×0.6; malformed price table exits 2; m8 regression rejects NaN/Infinity. |
-| 36 | `opencode run --format json` | PASS | Fake executable records argv in `tests/test_adapters.py`. |
-| 37 | `claude -p --output-format json` | PASS | Same fake-executable technique. |
-| 38 | `aider --message` | PASS | Same. |
-| 39 | `codex exec --json` | PASS | Same, including cumulative JSONL usage. |
+| 36 | `opencode run --format json` | PASS | Fake executable records argv; `--model <id>` is now passed and the multi-line prompt is streamed via stdin so `.cmd` launchers cannot truncate it. `tests/test_m9_claims_adapters.py`. |
+| 37 | `claude -p --output-format json` | PASS | Same, with `--model` and stdin prompt. |
+| 38 | `aider --message` | PASS | Same, with `--model`. |
+| 39 | `codex exec --json` | PASS | Same, with `-m`, including cumulative JSONL usage. |
 | 40 | `command` template with `{workdir}` `{prompt_file}` | PASS | `test_cli_run_with_command_adapter` runs a real Python agent script. |
 | 41 | Unavailable adapters reported, never faked | PASS | `resolve_adapter()` checks installation/config; missing executable exits 2 with "not available". |
 | 42 | Unit-test adapters with fake executables/servers | PASS | `tests/fake_openai_server.py` (loopback only), `write_fake_cli()` helper, 17 adapter tests. |
@@ -90,7 +92,7 @@ states this explicitly.
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | 43 | Per-attempt and per-agent/model aggregation | PASS | `results.jsonl` + `summary.json.by_agent_model`; golden metrics pinned in `tests/test_metrics_golden.py`. |
-| 44 | Hidden pass rate, partial score, visible pass rate, greenwash rate, honest-failure rate, tamper by kind, mean cost/tokens/time, pass@k, bootstrap 95% CIs | PASS | `summarize()` emits every field; exact values/CIs asserted by `test_metrics_golden.py`. |
+| 44 | Hidden pass rate, partial score, visible pass rate, greenwash rate, honest-failure rate, tamper by kind, mean cost/tokens/time, pass@k, bootstrap 95% CIs | PASS | `summarize()` emits every field plus a scalar per-attempt tamper rate, uncertain/greenwash-certain rates and task-cluster CIs; exact hand-derived values asserted by `test_metrics_golden.py` and `tests/test_m9_metrics.py`. pass@k now uses the unbiased `1 - C(n-c,k)/C(n,k)` estimator. |
 | 45 | Visible/hidden gap reported | PASS | First-class `visible_hidden_gap` and `visible_hidden_gap_ci95` in `summary.json` (paired per-attempt difference) plus an HTML card. Fixture A: 5/6 − 2/6 = 3/6 = 50.0%, CI [16.7%, 83.3%], asserted by `test_metrics_golden.py` and `test_report_shows_the_visible_hidden_gap`. |
 | 46 | JSONL per attempt, `summary.json`, static HTML leaderboard | PASS | Verified run writes all three; `test_write_report_uses_lf_and_matches_golden`. |
 | 47 | Sortable table, per-task matrix, drill-down (spec, diff, tamper hunks, test output) | PASS | `test_html_has_sortable_leaderboard_matrix_and_drilldowns` and `test_html_contains_spec_diff_tamper_hunks_and_test_output`; sort script inlined and keyboard accessible. |
@@ -131,22 +133,23 @@ states this explicitly.
 
 ## Final verification
 
-Run 2026-11-20 on Python 3.15.2 / Node 26.13.0 / Windows 11, after all fixes:
+Run 2026-11-21 on Python 3.15.2 / Node 26.13.0 / Windows 11, after all m9 fixes:
 
-- `python -m pip wheel . --no-deps -w dist/` → built `greenwash-0.1.0-py3-none-any.whl`.
+- `python -m pip wheel . --no-deps -w dist/` → built `greenwash-0.1.0-py3-none-any.whl`
+  with 622 task files packaged under `greenwash/tasks/`.
 - `python -m ruff check .` → All checks passed.
-- `python -m ruff format --check .` → 329 files already formatted.
-- `python -m mypy --strict` → Success: no issues found in 42 source files.
-- `python -m pytest` → **188 passed in 27m14s**, total coverage **95.00%**
-  (gate 90%). Includes `validate-tasks` over all 40 tasks three times, the
-  scripted end-to-end pipeline and all m8 hostile-input regressions.
+- `python -m ruff format --check .` → all files formatted.
+- `python -m mypy --strict` → Success: no issues found in 49 source files.
 - `python -m greenwash validate-tasks --tasks tasks` → `validated 40 task(s):
-  all oracles passed` (exit 0).
-- README quickstarts: `validate-tasks`, the scripted run on `crc32-check`
-  (`hidden_pass_rate 1.0`, `greenwash_rate 0.0`, exit 0) and `compare` on the
-  committed fixtures (`paired_attempts 6`, `b_better 2`, `b_worse 0`, exit 0)
-  were all executed and their outputs verified.
+  all oracles passed` (exit 0), including the new ≥8-hidden-test rule, mutant
+  distinctness and real-kill checks.
+- `python -m pytest` → **302 passed in 25m39s**, total coverage **94.66%**
+  (gate 90%). Includes all seven m9 regression modules, the 40-task oracle
+  validation and the scripted end-to-end pipeline.
 
-No unresolved spec items. Documented deviations: item 12 (node:test instead of
-vitest, verified against official Node docs) and item 53 (no dedicated DST task;
-UTC/DST-adjacent behaviour is covered by `cron-next` and `retry-after`).
+Documented deviations: item 12 (`node:test` instead of vitest; Node ≥ 22.6),
+item 27 (diff computed with `difflib` rather than git), and item 53 (no dedicated
+DST task; UTC/DST-adjacent behaviour is covered by `cron-next` and `retry-after`).
+CI root causes A (Node 22 directory argument) and B (Python 3.11 float sum) are
+fixed and covered by regression tests, so the green local suite is no longer an
+artefact of using versions outside the CI matrix.

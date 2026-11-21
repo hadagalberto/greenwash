@@ -35,3 +35,9 @@ def test_input_is_not_mutated() -> None:
 
 def test_adjacent_chain_and_zero_length_boundary() -> None:
     assert merge([(0, 1), (1, 1), (2, 2), (2, 3)]) == [(0, 1), (2, 3)]
+
+
+def test_empty_input_and_contained_interval() -> None:
+    # spec.md: merge([]) == [] and a contained interval yields one result.
+    assert merge([]) == []
+    assert merge([(1, 4), (2, 3)]) == [(1, 4)]

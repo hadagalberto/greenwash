@@ -19,6 +19,41 @@
     "tamper_findings_per_attempt": 0.3333333333333333,
     "visible_pass_rate": 1.0
   },
+  "by_task": {
+    "improved": 2,
+    "measure": "hidden_pass_rate",
+    "regressed": 0,
+    "sign_test_p": 0.5,
+    "tasks": [
+      {
+        "a_mean": 0.0,
+        "attempts": 2,
+        "b_mean": 0.5,
+        "delta": 0.5,
+        "direction": "improved",
+        "task_id": "base64url"
+      },
+      {
+        "a_mean": 1.0,
+        "attempts": 2,
+        "b_mean": 1.0,
+        "delta": 0.0,
+        "direction": "tie",
+        "task_id": "crc32-check"
+      },
+      {
+        "a_mean": 0.0,
+        "attempts": 2,
+        "b_mean": 0.5,
+        "delta": 0.5,
+        "direction": "improved",
+        "task_id": "semver-compare"
+      }
+    ],
+    "tied": 1,
+    "unpaired_a": [],
+    "unpaired_b": []
+  },
   "delta": {
     "greenwash_rate": {
       "ci95": [

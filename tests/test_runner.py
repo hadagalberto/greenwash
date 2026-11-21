@@ -118,7 +118,8 @@ def test_pass_at_k_improves_with_repeats() -> None:
         _record("a", hidden_ok=True, partial=1.0, repeat=2),
     ]
     summary = summarize(records, max_repeat=2)
-    assert summary["pass_at_k"] == {"1": 0.0, "2": 1.0}
+    # Finding 16b: one pass in two repeats gives pass@1 = 1 - C(1,1)/C(2,1) = 0.5.
+    assert summary["pass_at_k"] == {"1": 0.5, "2": 1.0}
 
 
 def test_run_benchmark_writes_jsonl_and_summary(crc_task: Task, tmp_path: Path) -> None:

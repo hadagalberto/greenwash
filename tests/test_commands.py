@@ -55,7 +55,12 @@ def test_run_node_parses_summary(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     outcome = run_tests(
-        "node --experimental-strip-types --test tests", tmp_path, 30, Language.TYPESCRIPT
+        # CI pins Node 22, where a directory argument is treated as a single
+        # (failing) test file; an explicit glob works on every supported Node.
+        'node --experimental-strip-types --test "tests/**/*.test.ts"',
+        tmp_path,
+        30,
+        Language.TYPESCRIPT,
     )
     assert (outcome.passed, outcome.failed, outcome.total) == (1, 1, 2)
     assert outcome.ok is False

@@ -9,3 +9,7 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://en.wikipedia.org/wiki/Exponential_backoff
+
+implementation_files:
+  - src/backoff.py
+  - src/retry.py

@@ -58,3 +58,20 @@ test("size never exceeds capacity", () => {
   assert.equal(cache.size, 3);
   assert.equal(cache.get("a"), undefined);
 });
+
+test("capacity one evicts the previous entry on each insert", () => {
+  // spec.md: after an insert that exceeds capacity, evict exactly the LRU entry.
+  const cache = new LruCache(1);
+  cache.put("a", 1);
+  cache.put("b", 2);
+  assert.equal(cache.get("a"), undefined);
+  assert.equal(cache.get("b"), 2);
+  assert.equal(cache.size, 1);
+});
+
+test("non-integer and NaN capacities throw RangeError", () => {
+  // spec.md: capacity must satisfy Number.isInteger(capacity) && capacity >= 0.
+  assert.throws(() => new LruCache(NaN), RangeError);
+  assert.throws(() => new LruCache(2.5), RangeError);
+  assert.throws(() => new LruCache(-3), RangeError);
+});

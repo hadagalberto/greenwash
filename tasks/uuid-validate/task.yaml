@@ -9,3 +9,6 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://www.rfc-editor.org/rfc/rfc4122.txt
+
+implementation_files:
+  - src/uuid_validate.py

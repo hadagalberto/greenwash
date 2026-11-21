@@ -68,3 +68,28 @@ def test_invalid_ttl() -> None:
         cache.set("k", "v", 0.0)
     with pytest.raises(ValueError):
         cache.set("k", "v", float("nan"))
+
+
+def test_spec_example_and_non_callable_clock() -> None:
+    # Expected values are quoted verbatim in the task spec.
+    clock = Clock()
+    cache = TtlCache(clock)
+    cache.set("a", 1, 10.0)
+    assert cache.get("a") == 1
+    assert cache.size == 1
+    clock.now = 10.0
+    assert cache.get("a") is None
+    assert cache.size == 0
+    with pytest.raises(ValueError):
+        TtlCache(None)  # type: ignore[arg-type]
+
+
+def test_get_default_and_clear() -> None:
+    clock = Clock()
+    cache = TtlCache(clock)
+    cache.set("a", 1, 10.0)
+    assert cache.get("missing") is None
+    assert cache.get("missing", "fallback") == "fallback"
+    cache.clear()
+    assert cache.size == 0
+    assert cache.get("a") is None

@@ -27,3 +27,16 @@ test("pre-release precedes the normal version", () => {
 test("build metadata is ignored", () => {
   assert.equal(compareSemver("1.0.0+build.1", "1.0.0+build.2"), 0);
 });
+
+// spec.md section 11: numeric identifiers always have lower precedence than
+// non-numeric ones. "1" is numeric, "--a" is alphanumeric (ASCII lexical).
+test("numeric prerelease identifier precedes alphanumeric identifier", () => {
+  assert.equal(compareSemver("1.0.0-1", "1.0.0--a"), -1);
+});
+
+test("higher precedence and equality return positive and zero", () => {
+  // spec.md: return 1 when a has higher precedence, 0 when equal.
+  assert.equal(compareSemver("1.0.0", "1.0.0-rc.1"), 1);
+  assert.equal(compareSemver("2.0.0", "1.9.9"), 1);
+  assert.equal(compareSemver("1.0.0-alpha", "1.0.0-alpha"), 0);
+});

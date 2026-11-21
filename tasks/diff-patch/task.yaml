@@ -9,3 +9,7 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://www.gnu.org/software/diffutils/manual/html_node/Unified-Format.html
+
+implementation_files:
+  - src/hunk.py
+  - src/patch.py

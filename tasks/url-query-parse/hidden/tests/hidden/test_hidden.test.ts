@@ -31,3 +31,17 @@ test('malformed escapes throw', () => {
 test('invalid utf-8 throws', () => {
   assert.throws(() => parseQuery('bad=%FF'), Error);
 });
+
+test('spec examples', () => {
+  // Expectations are quoted verbatim in the task spec.
+  assert.deepEqual(parseQuery('a=1&b=2'), { a: '1', b: '2' });
+  assert.deepEqual(parseQuery('flag&empty='), { flag: '', empty: '' });
+  assert.throws(() => parseQuery('bad=%ZZ'), Error);
+});
+
+test('leading question mark is optional and empty segments are skipped', () => {
+  assert.deepEqual(parseQuery(''), {});
+  assert.deepEqual(parseQuery('?'), {});
+  assert.deepEqual(parseQuery('?a=1'), { a: '1' });
+  assert.deepEqual(parseQuery('&&a=1&&'), { a: '1' });
+});

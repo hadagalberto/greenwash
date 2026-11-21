@@ -66,3 +66,34 @@ def test_parse_format_roundtrip_vectors() -> None:
     for text in ("P1M", "PT1M", "P1W2D", "P23DT23H"):
         assert format_duration(parse_duration(text)) == text
     assert format_duration(parse_duration("PT0S")) == "P0D"
+
+
+def test_full_spec_parse_example() -> None:
+    # spec.md: parse_duration('P3Y6M4DT12H30M5S') sets all components as written.
+    parsed = parse_duration("P3Y6M4DT12H30M5S")
+    assert tuple(parsed[key] for key in KEYS) == (3, 6, 0, 4, 12, 30, 5)
+
+
+def test_full_spec_format_example() -> None:
+    # spec.md: format_duration({'years': 1, 'hours': 2}) == 'P1YT2H' and the
+    # canonical form omits T when no time component is present.
+    assert format_duration({"years": 1, "hours": 2}) == "P1YT2H"
+    assert (
+        format_duration(
+            {"years": 3, "months": 6, "days": 4, "hours": 12, "minutes": 30, "seconds": 5}
+        )
+        == "P3Y6M4DT12H30M5S"
+    )
+
+
+def test_format_rejects_non_integer_negative_and_bool_components() -> None:
+    # spec.md: every listed component must be a non-negative integer.
+    for bad in ({"days": -1}, {"days": 1.5}, {"days": True}):
+        with pytest.raises(ValueError):
+            format_duration(bad)
+
+
+def test_zero_duration_representations_are_equivalent() -> None:
+    # spec.md / Wikipedia: PT0S and P0D represent the same zero duration.
+    assert parse_duration("PT0S") == parse_duration("P0D")
+    assert format_duration(parse_duration("PT0S")) == "P0D"

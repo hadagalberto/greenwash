@@ -5,8 +5,12 @@ category: algorithms
 difficulty: hard
 time_budget_s: 120
 test_commands:
-  visible: node --experimental-strip-types --test tests/visible
-  hidden: node --experimental-strip-types --test tests/hidden
+  visible: node --experimental-strip-types --test "tests/visible/**/*.test.ts"
+  hidden: node --experimental-strip-types --test "tests/hidden/**/*.test.ts"
 sources:
   - https://www.rfc-editor.org/rfc/rfc6902.txt
   - https://www.rfc-editor.org/rfc/rfc6901.txt
+
+implementation_files:
+  - src/patch.ts
+  - src/pointer.ts

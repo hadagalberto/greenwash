@@ -37,3 +37,9 @@ def test_zero_days_ignores_weekend_and_holiday_status() -> None:
 def test_many_holidays_skip_to_next_business_day() -> None:
     excluded = ("2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08")
     assert add_business_days("2024-01-01", 1, excluded) == "2024-01-09"
+
+
+def test_weekend_holiday_is_not_shifted_to_monday() -> None:
+    # spec.md: a holiday falling on a Saturday is NOT moved to the following
+    # Monday. 2024-01-06 is a Saturday, so it cannot exclude Monday 01-08.
+    assert add_business_days("2024-01-05", 1, ("2024-01-06",)) == "2024-01-08"

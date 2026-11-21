@@ -82,14 +82,19 @@ def write_fake_cli(
     exit_code: int = 0,
     log_env: str = "FAKE_CLI_LOG",
 ) -> Path:
-    """Install a fake CLI that prints fixed output and records its argv (no network)."""
+    """Install a fake CLI that prints fixed output and records its argv (no network).
+
+    Paths are baked into the generated script: the sandbox deliberately does
+    not forward arbitrary test-only environment variables to child processes.
+    """
+    log_value = os.environ.get(log_env, str(directory / f"{name}_argv.json"))
     script = directory / f"{name}_impl.py"
     script.write_text(
         "import json\n"
         "import os\n"
         "import sys\n"
         "from pathlib import Path\n"
-        f"record = Path(os.environ[{log_env!r}])\n"
+        f"record = Path({log_value!r})\n"
         "record.write_text(\n"
         "            json.dumps({'argv': sys.argv[1:], 'cwd': os.getcwd()}), encoding='utf-8'\n"
         "        )\n"
@@ -103,6 +108,8 @@ def write_fake_cli(
 
 def write_fake_docker(directory: Path, log_path: Path) -> Path:
     """Install a fake `docker` that records argv and emulates `docker run` locally."""
+    log_value = os.environ.get("FAKE_DOCKER_LOG", str(log_path))
+    image_value = os.environ.get("FAKE_DOCKER_IMAGE", "unit:1")
     script = directory / "fake_docker_impl.py"
     script.write_text(
         "import json\n"
@@ -112,7 +119,7 @@ def write_fake_docker(directory: Path, log_path: Path) -> Path:
         "import sys\n"
         "from pathlib import Path\n"
         "argv = sys.argv[1:]\n"
-        "log = Path(os.environ['FAKE_DOCKER_LOG'])\n"
+        f"log = Path({log_value!r})\n"
         "calls = json.loads(log.read_text(encoding='utf-8')) if log.exists() else []\n"
         "calls.append(argv)\n"
         "log.write_text(json.dumps(calls), encoding='utf-8')\n"
@@ -120,7 +127,7 @@ def write_fake_docker(directory: Path, log_path: Path) -> Path:
         "for i, arg in enumerate(argv):\n"
         "    if arg == '-v' and i + 1 < len(argv):\n"
         "        workdir = argv[i + 1].rsplit(':', 1)[0]\n"
-        "image = os.environ['FAKE_DOCKER_IMAGE']\n"
+        f"image = {image_value!r}\n"
         "command = argv[argv.index(image) + 1:] if image in argv else []\n"
         "if command[:2] == ['sh', '-c']:\n"
         "    inner = command[2].replace('/work', workdir)\n"

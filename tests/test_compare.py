@@ -24,9 +24,56 @@ def _rows(directory: Path) -> tuple[dict[str, object], ...]:
 
 
 def test_golden_compare_json_matches_fixtures() -> None:
-    payload = compare_dirs(A, B)
-    golden = (FIXTURES / "golden" / "compare.json").read_text(encoding="utf-8")
-    assert json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n" == golden
+    """Snapshots are not oracles: check structure and hand-derived numbers only.
+
+    Six attempts (two repeats each of three tasks): hidden passes are 2/6 in A
+    and 4/6 in B, greenwashes 3/6 vs 2/6, partial score 0.625 vs 0.625 + 1/6;
+    two attempts improve and four tie. Aggregated by task, two of three tasks
+    improve and one ties, so the two-sided sign test uses n = 2, k = 2 -> p = 0.5.
+    """
+    golden = json.loads((FIXTURES / "golden" / "compare.json").read_text(encoding="utf-8"))
+    assert isinstance(golden, dict)
+    assert {
+        "paired_attempts",
+        "tasks",
+        "unpaired_a",
+        "unpaired_b",
+        "a",
+        "b",
+        "delta",
+        "outcomes",
+        "pairs",
+        "by_task",
+    }.issubset(golden)
+    assert golden["paired_attempts"] == 6
+    assert golden["tasks"] == ["base64url", "crc32-check", "semver-compare"]
+    assert golden["unpaired_a"] == [] and golden["unpaired_b"] == []
+    assert golden["outcomes"] == {"b_better": 2, "b_worse": 0, "tie": 4}
+    a = golden["a"]
+    b = golden["b"]
+    assert isinstance(a, dict) and isinstance(b, dict)
+    assert a["hidden_pass_rate"] == pytest.approx(1 / 3)
+    assert b["hidden_pass_rate"] == pytest.approx(2 / 3)
+    assert a["greenwash_rate"] == pytest.approx(1 / 2)
+    assert b["greenwash_rate"] == pytest.approx(1 / 3)
+    assert a["partial_hidden_score"] == pytest.approx(0.625)
+    assert b["partial_hidden_score"] == pytest.approx(0.625 + 1 / 6)
+    assert a["visible_pass_rate"] == pytest.approx(5 / 6)
+    assert b["visible_pass_rate"] == 1.0
+    assert (
+        a["tamper_findings_per_attempt"] == b["tamper_findings_per_attempt"] == pytest.approx(1 / 3)
+    )
+    delta = golden["delta"]
+    assert isinstance(delta, dict)
+    assert delta["hidden_pass_rate"]["mean"] == pytest.approx(1 / 3)
+    assert delta["greenwash_rate"]["mean"] == pytest.approx(-1 / 6)
+    assert delta["partial_hidden_score"]["mean"] == pytest.approx(1 / 6)
+    pairs = golden["pairs"]
+    assert isinstance(pairs, list) and len(pairs) == 6
+    by_task = golden["by_task"]
+    assert isinstance(by_task, dict)
+    assert by_task["improved"] == 2 and by_task["regressed"] == 0 and by_task["tied"] == 1
+    assert by_task["sign_test_p"] == pytest.approx(0.5)
 
 
 def test_exact_paired_metrics_on_fixture_results() -> None:
@@ -126,10 +173,17 @@ def test_cli_compare_prints_json_and_writes_compare_json(
     assert main(["compare", str(A), str(B), "--out", str(out)]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed == compare_dirs(A, B)
-    assert (out / "compare.json").is_file()
-    assert (out / "compare.json").read_text(encoding="utf-8") == (
-        FIXTURES / "golden" / "compare.json"
-    ).read_text(encoding="utf-8")
+    target = out / "compare.json"
+    assert target.is_file()
+    # Snapshots are not oracles: verify the persisted payload structurally with
+    # hand-derived values, not by comparing bytes with the golden file.
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload == printed
+    assert payload["paired_attempts"] == 6
+    assert payload["outcomes"] == {"b_better": 2, "b_worse": 0, "tie": 4}
+    assert payload["a"]["hidden_pass_rate"] == pytest.approx(1 / 3)
+    assert payload["b"]["hidden_pass_rate"] == pytest.approx(2 / 3)
+    assert payload["by_task"]["sign_test_p"] == pytest.approx(0.5)
 
 
 def test_cli_compare_rejects_missing_directory(capsys: pytest.CaptureFixture[str]) -> None:

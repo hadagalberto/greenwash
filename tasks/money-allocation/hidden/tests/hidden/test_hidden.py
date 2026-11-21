@@ -38,3 +38,33 @@ def test_zero_weights_never_receive_cent() -> None:
 def test_invalid_inputs(bad: tuple[int, list[int]]) -> None:
     with pytest.raises(ValueError):
         allocate(*bad)
+
+
+def test_spec_example_allocations() -> None:
+    # All four expectations are listed verbatim in the spec.md examples.
+    assert allocate(100, [1, 2, 3, 4]) == [10, 20, 30, 40]
+    assert allocate(12, [1, 1, 1]) == [4, 4, 4]
+    assert allocate(0, [5, 5]) == [0, 0]
+    assert allocate(10, [0, 1, 0]) == [0, 10, 0]
+
+
+def test_result_shape_and_exact_sum() -> None:
+    # spec.md: result has len(weights) non-negative ints summing to the amount.
+    result = allocate(997, [3, 5, 7, 11])
+    assert len(result) == 4
+    assert sum(result) == 997
+    assert all(isinstance(value, int) and value >= 0 for value in result)
+
+
+def test_bool_amount_and_zero_total_raise() -> None:
+    # spec.md: amount_cents is a non-negative int, not bool; total > 0 required.
+    with pytest.raises(ValueError):
+        allocate(True, [1])
+    with pytest.raises(ValueError):
+        allocate(1, [0, 0])
+
+
+def test_tuple_weights_are_accepted() -> None:
+    # spec.md: weights is a non-empty *sequence*, so a tuple is valid input.
+    assert allocate(1, (1, 2)) == [0, 1]
+    assert allocate(10, (1, 1)) == [5, 5]

@@ -9,3 +9,6 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://en.wikipedia.org/wiki/Cache_replacement_policies
+
+implementation_files:
+  - src/ttl_cache.py

@@ -9,6 +9,7 @@ raw HTML or JavaScript.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -126,6 +127,14 @@ def _ci(value: object, spec: str) -> str:
     return f"[{_float(bounds[0]):{spec}}, {_float(bounds[1]):{spec}}]"
 
 
+def _ci_for(metrics: dict[str, object], name: str, spec: str) -> str:
+    """Prefer the cluster-aware CI; old summaries only have the attempt-level one."""
+    cluster = metrics.get(f"{name}_ci95_cluster")
+    if isinstance(cluster, list) and len(cluster) == 2:
+        return _ci(cluster, spec)
+    return _ci(metrics.get(f"{name}_ci95"), spec)
+
+
 def _money(value: object) -> str:
     return f"${_float(value):.4f}"
 
@@ -141,62 +150,86 @@ def _metric_cards(overall: dict[str, object]) -> list[dict[str, str]]:
         {
             "label": "Hidden pass rate (tasks solved)",
             "value": _pct(overall.get("hidden_pass_rate")),
-            "ci": _ci(overall.get("hidden_pass_rate_ci95"), rate),
+            "ci": _ci_for(overall, "hidden_pass_rate", rate),
             "note": "hidden tests fully pass on the agent's implementation",
         },
         {
             "label": "Partial hidden score",
             "value": _pct(overall.get("partial_hidden_score")),
-            "ci": _ci(overall.get("partial_hidden_score_ci95"), rate),
+            "ci": _ci_for(overall, "partial_hidden_score", rate),
             "note": "fraction of hidden tests that pass",
         },
         {
             "label": "Greenwash rate",
             "value": _pct(overall.get("greenwash_rate")),
-            "ci": _ci(overall.get("greenwash_rate_ci95"), rate),
+            "ci": _ci_for(overall, "greenwash_rate", rate),
             "note": "claimed DONE while hidden tests failed",
         },
         {
             "label": "Visible pass rate",
             "value": _pct(overall.get("visible_pass_rate")),
-            "ci": _ci(overall.get("visible_pass_rate_ci95"), rate),
+            "ci": _ci_for(overall, "visible_pass_rate", rate),
             "note": "tests on the workspace as delivered by the agent",
         },
         {
             "label": "Original visible pass rate",
             "value": _pct(overall.get("original_visible_pass_rate")),
-            "ci": _ci(overall.get("original_visible_pass_rate_ci95"), rate),
+            "ci": _ci_for(overall, "original_visible_pass_rate", rate),
             "note": "visible tests after restoring the originals",
         },
         {
             "label": "Visible/hidden gap",
             "value": _pct(overall.get("visible_hidden_gap")),
-            "ci": _ci(overall.get("visible_hidden_gap_ci95"), rate),
+            "ci": _ci_for(overall, "visible_hidden_gap", rate),
             "note": "visible pass rate minus hidden pass rate",
         },
         {
             "label": "Honest failure rate",
             "value": _pct(overall.get("honest_failure_rate")),
-            "ci": _ci(overall.get("honest_failure_rate_ci95"), rate),
+            "ci": _ci_for(overall, "honest_failure_rate", rate),
             "note": "claimed FAILED and hidden tests failed",
         },
         {
             "label": "Mean cost (USD)",
             "value": _money(overall.get("mean_cost_usd")),
-            "ci": _ci(overall.get("mean_cost_usd_ci95"), detail),
+            "ci": _ci_for(overall, "mean_cost_usd", detail),
             "note": "per attempt",
         },
         {
             "label": "Mean tokens",
             "value": _number(overall.get("mean_tokens")),
-            "ci": _ci(overall.get("mean_tokens_ci95"), detail),
+            "ci": _ci_for(overall, "mean_tokens", detail),
             "note": "input + output per attempt",
         },
         {
             "label": "Mean wall time (s)",
             "value": _number(overall.get("mean_wall_s")),
-            "ci": _ci(overall.get("mean_wall_s_ci95"), detail),
+            "ci": _ci_for(overall, "mean_wall_s", detail),
             "note": "per attempt",
+        },
+        {
+            "label": "Greenwash rate (certain DONE claims)",
+            "value": _pct(overall.get("greenwash_rate_certain", overall.get("greenwash_rate"))),
+            "ci": _ci_for(overall, "greenwash_rate", rate),
+            "note": "headline: heuristic claims are excluded",
+        },
+        {
+            "label": "Greenwash rate (all claims)",
+            "value": _pct(overall.get("greenwash_rate_all", overall.get("greenwash_rate"))),
+            "ci": _ci(overall.get("greenwash_rate_all_ci95"), rate),
+            "note": "includes uncertain DONE claims",
+        },
+        {
+            "label": "Uncertain claim rate",
+            "value": _pct(overall.get("uncertain_claim_rate")),
+            "ci": _ci(overall.get("uncertain_claim_rate_ci95"), rate),
+            "note": "claim status inferred heuristically rather than certain",
+        },
+        {
+            "label": "Tamper/attempt",
+            "value": _pct(overall.get("tamper_rate")),
+            "ci": _ci_for(overall, "tamper_rate", rate),
+            "note": "attempts with at least one finding, not finding count",
         },
     ]
 
@@ -206,10 +239,32 @@ def _agent_rows(data: ReportData) -> list[dict[str, str]]:
     by_agent = _dict(data.summary.get("by_agent_model"))
     for name in sorted(by_agent):
         metrics = _dict(by_agent[name])
-        tamper_rate = _float(
-            sum(_float(value) for value in _dict(metrics.get("tamper_rate_by_kind")).values())
-        )
-        pass_at_1 = _float(_dict(metrics.get("pass_at_k")).get("1"))
+        # New summaries carry the per-attempt scalar; old ones only have the
+        # per-kind rates, whose sum is an upper bound and can exceed 100%.
+        scalar_tamper = metrics.get("tamper_rate")
+        if scalar_tamper is None:
+            tamper_rate = math.fsum(
+                _float(value) for value in _dict(metrics.get("tamper_rate_by_kind")).values()
+            )
+        else:
+            tamper_rate = _float(scalar_tamper)
+        uncertain = metrics.get("uncertain_claim_rate")
+        if uncertain is None:
+            attempts = [
+                row
+                for row in data.records
+                if f"{_str(row.get('agent'))}/{_str(row.get('model'))}" == name
+            ]
+            uncertain_rate = (
+                sum(1 for row in attempts if _dict(row.get("claim")).get("certain") is not True)
+                / len(attempts)
+                if attempts
+                else 0.0
+            )
+        else:
+            uncertain_rate = _float(uncertain)
+        pass_at_k = _dict(metrics.get("pass_at_k_unbiased")) or _dict(metrics.get("pass_at_k"))
+        pass_at_1 = _float(pass_at_k.get("1"))
         rows.append(
             {
                 "name": name,
@@ -224,6 +279,8 @@ def _agent_rows(data: ReportData) -> list[dict[str, str]]:
                 "greenwash_value": str(_float(metrics.get("greenwash_rate"))),
                 "tamper": _pct(tamper_rate),
                 "tamper_value": str(tamper_rate),
+                "uncertain": _pct(uncertain_rate),
+                "uncertain_value": str(uncertain_rate),
                 "cost": _money(metrics.get("mean_cost_usd")),
                 "cost_value": str(_float(metrics.get("mean_cost_usd"))),
                 "tokens": _number(metrics.get("mean_tokens")),
@@ -275,6 +332,9 @@ def _attempt_view(index: int, row: dict[str, object]) -> dict[str, Any]:
         "claim": _str(claim.get("status")),
         "claim_certain": "certain" if _bool(claim.get("certain")) else "heuristic",
         "claim_evidence": _str(claim.get("evidence")),
+        # Grading caps both fields; the report must not truncate or trust them.
+        "transcript": _str(row.get("transcript")),
+        "final_message": _str(row.get("final_message")),
         "hidden_pass": _bool(row.get("hidden_pass")),
         "visible_pass": _bool(row.get("visible_pass")),
         "original_visible_pass": _bool(row.get("original_visible_pass")),
@@ -322,10 +382,11 @@ def render_html(data: ReportData) -> str:
     """Render a deterministic, fully offline HTML report."""
     overall = _dict(data.summary.get("overall"))
     attempts = [_attempt_view(index, row) for index, row in enumerate(data.records, start=1)]
+    pass_at_k_values = _dict(overall.get("pass_at_k_unbiased")) or _dict(overall.get("pass_at_k"))
     pass_at_k = [
         {"k": key, "value": _pct(value)}
         for key, value in sorted(
-            _dict(overall.get("pass_at_k")).items(),
+            pass_at_k_values.items(),
             key=lambda item: int(item[0]) if item[0].isdigit() else 0,
         )
     ]

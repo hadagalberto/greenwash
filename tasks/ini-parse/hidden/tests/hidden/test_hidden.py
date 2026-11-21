@@ -35,3 +35,10 @@ def test_empty_value_and_colon_separator() -> None:
 def test_invalid_documents(bad: str) -> None:
     with pytest.raises(ValueError):
         parse_ini(bad)
+
+
+def test_repeated_header_overrides_continuation() -> None:
+    # spec.md second example: repeated [a] merges, the later key wins, and the
+    # earlier continuation is discarded when that key is assigned again.
+    text = "top = yes\n[a]\nk = first\n    second\n[a]\nk = last ; note\n"
+    assert parse_ini(text) == {"": {"top": "yes"}, "a": {"k": "last"}}

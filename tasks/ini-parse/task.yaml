@@ -9,3 +9,6 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://en.wikipedia.org/wiki/INI_file
+
+implementation_files:
+  - src/ini_parse.py

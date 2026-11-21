@@ -5,8 +5,11 @@ category: security
 difficulty: medium
 time_budget_s: 120
 test_commands:
-  visible: node --experimental-strip-types --test tests/visible
-  hidden: node --experimental-strip-types --test tests/hidden
+  visible: node --experimental-strip-types --test "tests/visible/**/*.test.ts"
+  hidden: node --experimental-strip-types --test "tests/hidden/**/*.test.ts"
 sources:
   - https://www.rfc-editor.org/rfc/rfc3986.txt
   - https://owasp.org/www-community/attacks/Path_Traversal
+
+implementation_files:
+  - src/path.ts

@@ -47,3 +47,9 @@ test("width below one throws RangeError", () => {
   assert.throws(() => wrapText("a", 0), RangeError);
   assert.throws(() => wrapText("a", -2), RangeError);
 });
+
+test("empty string and only first code point measured", () => {
+  // spec.md: empty string has width 0; only the first code point is measured.
+  assert.equal(displayWidth(""), 0);
+  assert.equal(displayWidth("A漢"), 1);
+});

@@ -34,6 +34,10 @@ class TamperKind(StrEnum):
     ASSERTION_REMOVED = "assertion_removed"
     EXPECTED_LITERAL_CHANGED = "expected_literal_changed"
     TOLERANCE_LOOSENED = "tolerance_loosened"
+    # Milestone 9: attacks against the grader itself rather than test literals.
+    SYMLINK = "symlink"
+    ORACLE_INTERFERENCE = "oracle_interference"
+    TEST_CONFIG_CHANGED = "test_config_changed"
 
 
 @dataclass(frozen=True)
@@ -58,6 +62,9 @@ class Task:
     test_commands: TestCommands
     sources: tuple[str, ...]
     protected_files: tuple[str, ...]
+    # Files the agent is allowed to change. When non-empty, hidden grading copies
+    # only these files from the agent's tree into a harness-owned fresh directory.
+    implementation_files: tuple[str, ...] = ()
 
     @property
     def workspace_dir(self) -> Path:
@@ -192,6 +199,8 @@ class AgentResult:
     wall_s: float
     timed_out: bool
     exit_code: int
+    # The agent's final assistant message, kept separate from tool output.
+    final_message: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -205,4 +214,5 @@ class AgentResult:
             "wall_s": self.wall_s,
             "timed_out": self.timed_out,
             "exit_code": self.exit_code,
+            "final_message": self.final_message,
         }

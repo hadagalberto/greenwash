@@ -50,3 +50,12 @@ def test_hyphens_are_not_accepted() -> None:
 
 def test_non_digit_is_invalid() -> None:
     assert is_valid("12a") is False
+
+
+def test_at_least_two_ascii_digits_required_without_raising() -> None:
+    # spec.md lines 34 and 39: >=2 chars, ASCII digits only, never raise for
+    # arbitrary string input. "0" is too short; superscript and Arabic-Indic
+    # digits are non-ASCII and must be rejected, not passed to int().
+    assert is_valid("0") is False
+    assert is_valid("²5") is False
+    assert is_valid("٣٣") is False

@@ -22,7 +22,7 @@ _REQUIRED_KEYS = frozenset(
         "sources",
     }
 )
-_OPTIONAL_KEYS = frozenset({"protected_files"})
+_OPTIONAL_KEYS = frozenset({"protected_files", "implementation_files"})
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _TODO_RE = re.compile(r"\bTODO\b", re.IGNORECASE)
 _REFERENCE_IMPORT_RE = re.compile(
@@ -127,6 +127,9 @@ def validate_task(raw: object, root: Path) -> tuple[Task | None, list[str]]:
 
     sources = _string_list(mapping.get("sources"), "sources", errors)
     protected = _string_list(mapping.get("protected_files", []), "protected_files", errors)
+    implementation = _string_list(
+        mapping.get("implementation_files", []), "implementation_files", errors
+    )
 
     if errors or language is None or commands is None:
         return None, errors
@@ -143,6 +146,7 @@ def validate_task(raw: object, root: Path) -> tuple[Task | None, list[str]]:
             test_commands=commands,
             sources=sources,
             protected_files=protected,
+            implementation_files=implementation,
         ),
         errors,
     )

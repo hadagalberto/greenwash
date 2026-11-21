@@ -48,6 +48,11 @@ Issues = "https://github.com/hadagalberto/greenwash/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/greenwash"]
 
+# Finding 18: `greenwash run` must find the task suite when installed from a
+# wheel, not only from a source checkout.
+[tool.hatch.build.targets.wheel.force-include]
+"tasks" = "greenwash/tasks"
+
 [tool.hatch.build.targets.sdist]
 include = ["src", "tests", "tasks", "scripts", "docs", "README.md", "README.pt-BR.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE", "pyproject.toml", ".gitattributes"]
 

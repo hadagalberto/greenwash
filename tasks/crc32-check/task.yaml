@@ -10,3 +10,6 @@ test_commands:
 sources:
   - https://www.rfc-editor.org/rfc/rfc1952.txt
   - https://www.zlib.net/crc_v3.txt
+
+implementation_files:
+  - src/checksum.py

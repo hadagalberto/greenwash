@@ -12,7 +12,7 @@ mocks reusing the client's own validators, property generators avoiding failing 
 
 ## Stack
 Python ≥ 3.11, hatchling, CLI `greenwash` (typer or argparse), mypy --strict, ruff, pytest (+ hypothesis where useful), coverage ≥ 90% for the harness.
-Runtime deps kept small (httpx, pyyaml, jinja2 for the HTML report, rich optional). Tasks are in **Python and TypeScript** (Node ≥ 20 with vitest) — the harness runs each task's own test command.
+Runtime deps kept small (httpx, pyyaml, jinja2 for the HTML report, rich optional). Tasks are in **Python and TypeScript** — the harness runs each task's own test command. TypeScript tasks use Node's built-in `node:test` runner (not vitest); `--experimental-strip-types` requires **Node ≥ 22.6**, and CI pins 22.23.5. Recorded decision: vitest added a dependency and config file for no benefit here; the built-in runner supplies equivalent `test`/`assert` APIs.
 CI (GitHub Actions) ubuntu/windows/macos for the harness; a separate job runs `greenwash validate-tasks` on ubuntu. README.md (en) + README.pt-BR.md, CHANGELOG, CONTRIBUTING (how to author a task), LICENSE. Do not publish to PyPI.
 
 ## Task format (`tasks/<id>/`)

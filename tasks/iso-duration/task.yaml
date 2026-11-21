@@ -9,3 +9,6 @@ test_commands:
   hidden: python -m pytest -q tests/hidden
 sources:
   - https://en.wikipedia.org/wiki/ISO_8601#Durations
+
+implementation_files:
+  - src/iso_duration.py

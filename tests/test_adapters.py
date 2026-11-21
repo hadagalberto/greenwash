@@ -149,7 +149,8 @@ def test_parse_cli_output_handles_json_jsonl_and_raw_text() -> None:
             "opencode",
             OpenCodeAdapter,
             '{"content":"STATUS: DONE","usage":{"input_tokens":100,"output_tokens":20}}',
-            ["run", "--format", "json", "solve it"],
+            # Finding 9/10: model flag added; multi-line prompt goes via stdin.
+            ["run", "--model", "model-opencode", "--format", "json"],
             100,
             20,
             0.0,
@@ -159,7 +160,7 @@ def test_parse_cli_output_handles_json_jsonl_and_raw_text() -> None:
             ClaudeCodeAdapter,
             '{"result":"STATUS: DONE","usage":{"input_tokens":7,"output_tokens":3},'
             '"total_cost_usd":0.42}',
-            ["-p", "--output-format", "json", "solve it"],
+            ["-p", "--model", "model-claude-code", "--output-format", "json"],
             7,
             3,
             0.42,
@@ -168,7 +169,7 @@ def test_parse_cli_output_handles_json_jsonl_and_raw_text() -> None:
             "aider",
             AiderAdapter,
             "edited files\nSTATUS: DONE\n",
-            ["--message", "solve it", "--yes", "--no-auto-commits"],
+            ["--model", "model-aider", "--message", "solve it", "--yes", "--no-auto-commits"],
             0,
             0,
             0.0,
@@ -178,7 +179,7 @@ def test_parse_cli_output_handles_json_jsonl_and_raw_text() -> None:
             CodexAdapter,
             '{"text":"part"}\n{"text":"STATUS: DONE","usage":'
             '{"prompt_tokens":9,"completion_tokens":4},"cost_usd":0.01}',
-            ["exec", "--json", "solve it"],
+            ["exec", "-m", "model-codex", "--json", "solve it"],
             9,
             4,
             0.01,

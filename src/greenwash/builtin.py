@@ -154,7 +154,9 @@ class ToolExecutor:
         if not isinstance(content, str):
             raise BuiltinAgentError("content must be a string")
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        # newline="" disables the platform's default newline translation so the
+        # model's exact text is written (no CRLF injection on Windows).
+        target.write_text(content, encoding="utf-8", newline="")
         return f"wrote {len(content)} characters to {target.name}"
 
     def _list_dir(self, arguments: dict[str, object]) -> str:
@@ -301,9 +303,12 @@ class BuiltinAdapter:
         steps = 0
         exit_code = 0
         timed_out = False
+        # The final assistant text is kept apart from tool output so a claim is
+        # parsed from what the model actually said, not from tool results.
+        final_message = ""
 
         def loop(client: httpx.Client) -> None:
-            nonlocal tokens_in, tokens_out, steps
+            nonlocal tokens_in, tokens_out, steps, final_message
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -330,6 +335,7 @@ class BuiltinAdapter:
                 content = assistant.get("content")
                 if isinstance(content, str) and content:
                     transcript_parts.append(content)
+                    final_message = content
 
                 calls_raw = assistant.get("tool_calls") or []
                 if not isinstance(calls_raw, list):
@@ -388,7 +394,8 @@ class BuiltinAdapter:
             adapter=self.name,
             model=self._model,
             transcript=transcript,
-            claim=parse_claim(transcript),
+            claim=parse_claim(final_message or transcript),
+            final_message=final_message,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             cost_usd=self._price_table.cost_usd(self._model, tokens_in, tokens_out),

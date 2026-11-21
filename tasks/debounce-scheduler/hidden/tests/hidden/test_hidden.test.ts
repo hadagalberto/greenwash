@@ -75,3 +75,41 @@ test('calling a non-function throws TypeError', () => {
   const debouncer = new Debouncer(1, new FakeScheduler());
   assert.throws(() => debouncer.call(42 as unknown as () => void), TypeError);
 });
+
+test('constructor rejects non-finite and negative delays', () => {
+  // spec.md: delayMs must be finite and >= 0, else RangeError.
+  for (const delay of [-1, Infinity, NaN]) {
+    assert.throws(() => new Debouncer(delay, new FakeScheduler()), RangeError);
+  }
+});
+
+test('zero delay fires on the next scheduler tick', () => {
+  const scheduler = new FakeScheduler();
+  const debouncer = new Debouncer(0, scheduler);
+  let hits = 0;
+  debouncer.call(() => { hits += 1; });
+  assert.equal(hits, 0);
+  scheduler.advance(0);
+  assert.equal(hits, 1);
+  assert.equal(debouncer.pendingCount, 0);
+});
+
+test('flush and cancel are no-ops when nothing is pending', () => {
+  const scheduler = new FakeScheduler();
+  const debouncer = new Debouncer(5, scheduler);
+  debouncer.flush();
+  debouncer.cancel();
+  assert.equal(debouncer.pendingCount, 0);
+  scheduler.advance(100);
+  assert.equal(debouncer.pendingCount, 0);
+});
+
+test('pendingCount is one only while a callback waits', () => {
+  const scheduler = new FakeScheduler();
+  const debouncer = new Debouncer(10, scheduler);
+  assert.equal(debouncer.pendingCount, 0);
+  debouncer.call(() => {});
+  assert.equal(debouncer.pendingCount, 1);
+  scheduler.advance(10);
+  assert.equal(debouncer.pendingCount, 0);
+});

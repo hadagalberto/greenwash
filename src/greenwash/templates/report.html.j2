@@ -107,6 +107,7 @@ footer { border-top: 1px solid var(--line); padding: 18px 24px 30px; color: var(
       <th data-sort="number" scope="col">Cost</th>
       <th data-sort="number" scope="col">Tokens</th>
       <th data-sort="number" scope="col">pass@1</th>
+      <th scope="col">Uncertain claim</th>
     </tr></thead>
     <tbody>
     {%- for row in agents %}
@@ -121,6 +122,7 @@ footer { border-top: 1px solid var(--line); padding: 18px 24px 30px; color: var(
         <td data-value="{{ row.cost_value }}">{{ row.cost }}</td>
         <td data-value="{{ row.tokens_value }}">{{ row.tokens }}</td>
         <td data-value="{{ row.pass_at_1_value }}">{{ row.pass_at_1 }}</td>
+        <td>{{ row.uncertain }}</td>
       </tr>
     {%- endfor %}
     </tbody>
@@ -168,6 +170,10 @@ footer { border-top: 1px solid var(--line); padding: 18px 24px 30px; color: var(
     <div class="attempt-body">
       <h3>Claim</h3>
       <p>Status {{ attempt.claim }} ({{ attempt.claim_certain }}); evidence: {{ attempt.claim_evidence }}</p>
+      <h3>Agent transcript (truncated by the grader)</h3>
+      <pre class="transcript">{{ attempt.transcript }}</pre>
+      <h3>Agent final message (truncated by the grader)</h3>
+      <pre class="final-message">{{ attempt.final_message }}</pre>
       <h3>Spec given to the agent</h3>
       <pre class="spec">{{ attempt.spec }}</pre>
       <h3>Workspace diff</h3>

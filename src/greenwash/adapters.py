@@ -23,7 +23,7 @@ from greenwash.errors import AdapterUnavailableError
 from greenwash.fake_agent import FakeScript, apply_fake_script, load_fake_script
 from greenwash.models import AgentResult, Task
 from greenwash.pricing import PriceTable, load_price_table
-from greenwash.sandbox import LocalSandbox, Sandbox
+from greenwash.sandbox import CommandOutput, LocalSandbox, Sandbox
 
 __all__ = [
     "AdapterUnavailableError",
@@ -94,6 +94,8 @@ class CliOutput:
     tokens_in: int
     tokens_out: int
     cost_usd: float
+    # The final text document of a JSONL stream is the agent's final message.
+    final_message: str = ""
 
 
 def _all_dicts(value: object) -> list[dict[str, object]]:
@@ -148,7 +150,7 @@ def parse_cli_output(raw: str, keys: Sequence[str]) -> CliOutput:
     """Parse JSON or JSONL CLI output, falling back to the raw text verbatim."""
     stripped = raw.strip()
     if not stripped:
-        return CliOutput("", 0, 0, 0.0)
+        return CliOutput("", 0, 0, 0.0, "")
 
     documents: list[object] = []
     try:
@@ -160,10 +162,11 @@ def parse_cli_output(raw: str, keys: Sequence[str]) -> CliOutput:
             except json.JSONDecodeError:
                 continue
     if not documents:
-        return CliOutput(raw, 0, 0, 0.0)
+        return CliOutput(raw, 0, 0, 0.0, raw)
 
     texts = [text for document in documents if (text := _find_text(document, keys))]
     text = "\n".join(texts) if texts else raw
+    final_message = texts[-1] if texts else raw
     tokens_in = tokens_out = 0
     cost = 0.0
     for document in documents:
@@ -175,11 +178,11 @@ def parse_cli_output(raw: str, keys: Sequence[str]) -> CliOutput:
                 value = mapping.get(key)
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
                     cost = float(value)
-    return CliOutput(text, tokens_in, tokens_out, cost)
+    return CliOutput(text, tokens_in, tokens_out, cost, final_message)
 
 
 class _SubprocessAdapter:
-    """Base for CLI agents that accept the prompt as a command-line argument."""
+    """Base for CLI agents; the prompt may go on argv or via stdin."""
 
     def __init__(
         self,
@@ -187,8 +190,10 @@ class _SubprocessAdapter:
         executable: str,
         model: str,
         sandbox: Sandbox,
-        args_builder: Callable[[str], Sequence[str]],
+        args_builder: Callable[[str | None], Sequence[str]],
         text_keys: Sequence[str],
+        *,
+        prompt_on_stdin: bool = False,
     ) -> None:
         self._name = name
         self._executable = executable
@@ -196,6 +201,7 @@ class _SubprocessAdapter:
         self._sandbox = sandbox
         self._args_builder = args_builder
         self._text_keys = tuple(text_keys)
+        self._prompt_on_stdin = prompt_on_stdin
 
     @property
     def name(self) -> str:
@@ -219,8 +225,18 @@ class _SubprocessAdapter:
             )
         started = time.monotonic()
         executable = self._sandbox.resolve_executable(self._executable)
-        argv = [executable, *self._args_builder(prompt)]
-        output = self._sandbox.run_argv(argv, workdir, timeout_s)
+        # A newline in an argv element truncates npm-installed .cmd launchers on
+        # Windows. Use the sandbox's stdin-aware runner when available (the
+        # Sandbox protocol itself is intentionally left unchanged).
+        stdin_runner = cast(
+            "Callable[..., CommandOutput] | None",
+            getattr(self._sandbox, "run_argv_with_input", None) if self._prompt_on_stdin else None,
+        )
+        argv = [executable, *self._args_builder(None if stdin_runner else prompt)]
+        if stdin_runner is not None:
+            output = stdin_runner(argv, workdir, timeout_s, prompt)
+        else:
+            output = self._sandbox.run_argv(argv, workdir, timeout_s)
         parsed = parse_cli_output(output.stdout, self._text_keys)
         transcript = parsed.text
         if output.stderr:
@@ -231,34 +247,43 @@ class _SubprocessAdapter:
             adapter=self._name,
             model=self._model,
             transcript=transcript,
-            claim=parse_claim(transcript),
+            claim=parse_claim(parsed.final_message),
             tokens_in=parsed.tokens_in,
             tokens_out=parsed.tokens_out,
             cost_usd=parsed.cost_usd,
             wall_s=time.monotonic() - started,
             timed_out=output.timed_out,
             exit_code=130 if output.timed_out else output.returncode,
+            final_message=parsed.final_message,
         )
 
 
 class OpenCodeAdapter(_SubprocessAdapter):
-    """``opencode run --format json <prompt>``."""
+    """``opencode run [--model M] --format json <prompt>`` (prompt via stdin)."""
 
     def __init__(
         self, model: str = "opencode", sandbox: Sandbox | None = None, executable: str | None = None
     ) -> None:
+        model_args = ("--model", model) if model else ()
         super().__init__(
             "opencode",
             executable or _CLI_ADAPTERS["opencode"],
             model,
             sandbox or LocalSandbox(),
-            lambda prompt: ("run", "--format", "json", prompt),
+            lambda prompt: (
+                "run",
+                *model_args,
+                "--format",
+                "json",
+                *((prompt,) if prompt is not None else ()),
+            ),
             _TEXT_KEYS["opencode"],
+            prompt_on_stdin=True,
         )
 
 
 class ClaudeCodeAdapter(_SubprocessAdapter):
-    """``claude -p --output-format json <prompt>``."""
+    """``claude -p [--model M] --output-format json <prompt>`` (stdin prompt)."""
 
     def __init__(
         self,
@@ -266,44 +291,60 @@ class ClaudeCodeAdapter(_SubprocessAdapter):
         sandbox: Sandbox | None = None,
         executable: str | None = None,
     ) -> None:
+        model_args = ("--model", model) if model else ()
         super().__init__(
             "claude-code",
             executable or _CLI_ADAPTERS["claude-code"],
             model,
             sandbox or LocalSandbox(),
-            lambda prompt: ("-p", "--output-format", "json", prompt),
+            lambda prompt: (
+                "-p",
+                *model_args,
+                "--output-format",
+                "json",
+                *((prompt,) if prompt is not None else ()),
+            ),
             _TEXT_KEYS["claude-code"],
+            prompt_on_stdin=True,
         )
 
 
 class AiderAdapter(_SubprocessAdapter):
-    """``aider --message <prompt> --yes --no-auto-commits`` (plain text output)."""
+    """``aider [--model M] --message <prompt> --yes --no-auto-commits``."""
 
     def __init__(
         self, model: str = "aider", sandbox: Sandbox | None = None, executable: str | None = None
     ) -> None:
+        model_args = ("--model", model) if model else ()
         super().__init__(
             "aider",
             executable or _CLI_ADAPTERS["aider"],
             model,
             sandbox or LocalSandbox(),
-            lambda prompt: ("--message", prompt, "--yes", "--no-auto-commits"),
+            lambda prompt: (
+                *model_args,
+                "--message",
+                prompt or "",
+                "--yes",
+                "--no-auto-commits",
+            ),
             _TEXT_KEYS["aider"],
         )
 
 
 class CodexAdapter(_SubprocessAdapter):
-    """``codex exec --json <prompt>`` (JSONL events with cumulative usage)."""
+    """``codex exec [-m M] --json <prompt>`` (JSONL, cumulative usage)."""
 
     def __init__(
         self, model: str = "codex", sandbox: Sandbox | None = None, executable: str | None = None
     ) -> None:
+        model_args = ("-m", model) if model else ()
         super().__init__(
             "codex",
             executable or _CLI_ADAPTERS["codex"],
             model,
             sandbox or LocalSandbox(),
-            lambda prompt: ("exec", "--json", prompt),
+            lambda prompt: ("exec", *model_args, "--json", prompt or ""),
             _TEXT_KEYS["codex"],
         )
 
@@ -375,6 +416,7 @@ class CommandAdapter:
             wall_s=time.monotonic() - started,
             timed_out=output.timed_out,
             exit_code=exit_code,
+            final_message=transcript,
         )
 
 
@@ -409,6 +451,7 @@ class ScriptedAgentAdapter:
             wall_s=time.monotonic() - started,
             timed_out=False,
             exit_code=0,
+            final_message=transcript,
         )
 
 

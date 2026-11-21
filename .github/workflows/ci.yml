@@ -19,9 +19,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      # Node >=22.6 is required for --experimental-strip-types; pin an exact
+      # patched 22.x so TypeScript tasks behave the same on every CI runner.
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "22.23.5"
       - name: Install
         run: python -m pip install -e ".[dev]"
       - name: Build package
@@ -43,9 +45,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # Node >=22.6 is required for --experimental-strip-types; pin an exact
+      # patched 22.x so TypeScript tasks behave the same on every CI runner.
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "22.23.5"
       - name: Install
         run: python -m pip install -e ".[dev]"
       - name: Validate every task

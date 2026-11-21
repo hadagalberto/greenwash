@@ -53,3 +53,29 @@ def test_canonical_key_re_normalizes_after_casefold() -> None:
 def test_strip_marks_type_error() -> None:
     with pytest.raises(TypeError):
         strip_marks(5)  # type: ignore[arg-type]
+
+
+def test_spec_examples() -> None:
+    # Every expectation is listed verbatim in the spec.md Examples block.
+    assert canonical_key("ABC") == "abc"
+    assert normalized_equal("é", "e\u0301") is True
+    assert normalized_equal("Straße", "STRASSE") is True
+    assert normalized_equal("Å", "Å") is True
+    assert canonical_key("K") == "k"
+    assert strip_marks("Café") == "Cafe"
+    assert strip_marks("e\u0301x") == "ex"
+    assert strip_marks("abc") == "abc"
+
+
+def test_canonical_key_and_normalized_equal_type_errors() -> None:
+    # spec.md: canonical_key rejects non-strings; normalized_equal delegates to it.
+    with pytest.raises(TypeError):
+        canonical_key(5)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        normalized_equal(5, "abc")  # type: ignore[arg-type]
+
+
+def test_strip_marks_preserves_case_and_applies_no_transliteration() -> None:
+    # spec.md: only marks are dropped; case and non-decomposable letters remain.
+    assert strip_marks("É") == "E"
+    assert strip_marks("Straße") == "Straße"

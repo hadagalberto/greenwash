@@ -22,3 +22,22 @@ test("decodes the URL-safe check vector", () => {
 test("rejects standard base64 characters outside the URL-safe alphabet", () => {
   assert.throws(() => decodeUrl("AB+C"), Error);
 });
+
+// spec.md: "Reject non-zero pad bits for canonical encoding" (RFC 4648 3.5)
+// and "reject a length congruent to 1 modulo 4" (RFC 4648 3.2). All four
+// expected throws are derived by hand from those two sentences.
+test("rejects non-zero pad bits in a two-character group", () => {
+  assert.throws(() => decodeUrl("Zh"));
+});
+
+test("rejects non-zero pad bits in a three-character group", () => {
+  assert.throws(() => decodeUrl("Zm9"));
+});
+
+test("rejects a single-character message", () => {
+  assert.throws(() => decodeUrl("A"));
+});
+
+test("rejects a five-character (1 mod 4) message", () => {
+  assert.throws(() => decodeUrl("AAAAA"));
+});

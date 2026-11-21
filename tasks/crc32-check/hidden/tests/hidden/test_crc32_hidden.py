@@ -25,3 +25,24 @@ def test_ascii_vector() -> None:
 
 def test_pangram_vector() -> None:
     assert crc32(b"The quick brown fox jumps over the lazy dog") == 0x414FA339
+
+
+def test_empty_input_is_zero() -> None:
+    # spec.md required behaviour: crc32(b"") == 0 (register and xorout cancel).
+    assert crc32(b"") == 0
+
+
+def test_hello_vector() -> None:
+    # Published CRC-32 check value for b"hello", cross-checked with zlib at
+    # authoring time; the test itself never calls a library implementation.
+    assert crc32(b"hello") == 0x3610A686
+
+
+def test_single_zero_byte_vector() -> None:
+    # Published CRC-32 check value for the single byte 0x00.
+    assert crc32(b"\x00") == 0xD202EF8D
+
+
+def test_all_byte_values_vector() -> None:
+    # Published CRC-32 check value for bytes 0..255 in ascending order.
+    assert crc32(bytes(range(256))) == 0x29058C73

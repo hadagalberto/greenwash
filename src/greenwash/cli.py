@@ -17,7 +17,11 @@ from greenwash.sandbox import DEFAULT_SANDBOX_IMAGE, build_sandbox
 from greenwash.tasks import TaskError, discover_tasks
 from greenwash.validate import validate_all
 
-_DEFAULT_TASKS = Path(__file__).resolve().parents[2] / "tasks"
+# An installed wheel carries the tasks under ``greenwash/tasks``; a source
+# checkout keeps them at the repository root.  Support both (finding 18).
+_PACKAGE_TASKS = Path(__file__).resolve().parent / "tasks"
+_REPO_TASKS = Path(__file__).resolve().parents[2] / "tasks"
+_DEFAULT_TASKS = _PACKAGE_TASKS if _PACKAGE_TASKS.is_dir() else _REPO_TASKS
 _DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _DEFAULT_API_KEY_ENV = "OPENAI_API_KEY"
 _DEFAULT_MAX_STEPS = 30
@@ -157,6 +161,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if sandbox.name == "local":
         print(
             "warning: agents run commands on the host in temporary directories; "
+            "hidden tests and references are readable on the host in local mode; "
             "use --sandbox docker for isolation",
             file=sys.stderr,
         )
@@ -176,9 +181,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {exc}")
         return 2
 
+    # Finding 18: honour each task's declared time_budget_s unless the user
+    # explicitly passed --timeout.  The global value is only a fallback.
     timeout = (
         args.timeout if args.timeout is not None else max(task.time_budget_s for task in tasks)
     )
+    task_timeouts: dict[str, int] = {}
+    if args.timeout is None:
+        task_timeouts = {task.id: task.time_budget_s for task in tasks}
     summary = run_benchmark(
         RunConfig(
             tasks=tasks,
@@ -188,6 +198,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             timeout_s=timeout,
             out_dir=args.out,
             sandbox=sandbox,
+            task_timeouts=task_timeouts,
         )
     )
     overall = summary["overall"]

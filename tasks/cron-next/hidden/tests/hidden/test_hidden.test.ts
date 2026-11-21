@@ -36,3 +36,9 @@ test('invalid fields throw', () => {
     assert.throws(() => nextRun(expr, '2026-01-01T00:00:00Z'), Error, expr);
   }
 });
+
+test('spec.md examples return the next matching minute', () => {
+  // Both expected instants are quoted verbatim in the task spec.
+  assert.equal(nextRun('5 * * * *', '2026-01-01T00:00:00Z'), '2026-01-01T00:05:00Z');
+  assert.equal(nextRun('0 3 * * *', '2026-01-01T04:00:00Z'), '2026-01-02T03:00:00Z');
+});
