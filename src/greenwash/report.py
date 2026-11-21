@@ -37,10 +37,15 @@ class ReportData:
     records: tuple[dict[str, object], ...]
 
 
+def _reject_constant(value: str) -> object:
+    """Python accepts NaN/Infinity, but they would emit non-standard JSON downstream."""
+    raise ValueError(f"non-standard JSON constant {value!r}")
+
+
 def _read_json(path: Path) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        return json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_constant)
+    except (OSError, ValueError) as exc:
         raise ReportError(f"cannot read {path}: {exc}") from exc
 
 
@@ -68,8 +73,8 @@ def load_report(directory: Path) -> ReportData:
         if not line.strip():
             continue
         try:
-            row = json.loads(line)
-        except json.JSONDecodeError as exc:
+            row = json.loads(line, parse_constant=_reject_constant)
+        except ValueError as exc:
             raise ReportError(f"{results_path}:{number}: invalid JSON: {exc}") from exc
         if not isinstance(row, dict):
             raise ReportError(f"{results_path}:{number}: expected a JSON object")
@@ -162,6 +167,12 @@ def _metric_cards(overall: dict[str, object]) -> list[dict[str, str]]:
             "value": _pct(overall.get("original_visible_pass_rate")),
             "ci": _ci(overall.get("original_visible_pass_rate_ci95"), rate),
             "note": "visible tests after restoring the originals",
+        },
+        {
+            "label": "Visible/hidden gap",
+            "value": _pct(overall.get("visible_hidden_gap")),
+            "ci": _ci(overall.get("visible_hidden_gap_ci95"), rate),
+            "note": "visible pass rate minus hidden pass rate",
         },
         {
             "label": "Honest failure rate",
@@ -313,7 +324,10 @@ def render_html(data: ReportData) -> str:
     attempts = [_attempt_view(index, row) for index, row in enumerate(data.records, start=1)]
     pass_at_k = [
         {"k": key, "value": _pct(value)}
-        for key, value in sorted(_dict(overall.get("pass_at_k")).items())
+        for key, value in sorted(
+            _dict(overall.get("pass_at_k")).items(),
+            key=lambda item: int(item[0]) if item[0].isdigit() else 0,
+        )
     ]
     tamper_rows = [
         {"kind": kind, "rate": _pct(rate)}

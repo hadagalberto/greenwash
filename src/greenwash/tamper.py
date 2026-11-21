@@ -79,20 +79,24 @@ def _git_path(raw: str) -> str:
     return raw[2:] if raw.startswith(("a/", "b/", "a\\", "b\\")) else raw
 
 
+def _is_test_filename(name: str) -> bool:
+    """True when a *filename* is collected as a test by pytest or node:test."""
+    if name.startswith("test_") or name.startswith("test-"):
+        return True
+    if name.endswith(("_test.py", "_test.ts", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")):
+        return True
+    return name in {"conftest.py", "pytest.ini"} or "vitest.config" in name
+
+
 def is_test_file(path: str) -> bool:
     """Return True for paths that look like test files or test configuration."""
     # Diff paths are POSIX by convention, but accept Windows separators too so
     # handcrafted diffs and Windows-generated paths are classified correctly.
     normalised = path.replace("\\", "/")
     parts = PurePosixPath(normalised).parts
-    name = PurePosixPath(normalised).name
     if "tests" in parts or "test" in parts:
         return True
-    if name.startswith("test_") or name.startswith("test-"):
-        return True
-    if name.endswith(("_test.py", "_test.ts", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")):
-        return True
-    return name in {"conftest.py", "pytest.ini"} or "vitest.config" in name
+    return _is_test_filename(PurePosixPath(normalised).name)
 
 
 def _parse_diff_with_paths(diff: str) -> list[_Hunk]:
@@ -130,8 +134,9 @@ def _changed_lines(hunk: _Hunk) -> tuple[list[str], list[str]]:
     removed: list[str] = []
     added: list[str] = []
     for line in hunk.lines[1:]:
-        if line.startswith("---") or line.startswith("+++"):
-            continue
+        # The `--- a/…` / `+++ b/…` file headers live before the hunk header and
+        # never reach this list. A content line starting with `--` is a real
+        # removal and must not be mistaken for a header.
         if line.startswith("-"):
             removed.append(line[1:])
         elif line.startswith("+"):
@@ -257,17 +262,25 @@ def analyze_diff(diff: str) -> TamperReport:
         )
 
     # A pure rename has no hunk headers, so the normal hunk loop never sees it.
-    # Scan file headers explicitly: moving a test outside tests/ removes it from
-    # the graded suite just as surely as deleting it.
+    # Scan file headers explicitly. A move to another directory, or to a name
+    # the runner no longer collects, removes the test from the graded suite just
+    # as surely as deleting the file. A rename *between* test filenames in the
+    # same directory is still graded, so it is not reported.
     for header in _DIFF_HEADER_RE.finditer(diff):
         old_path = _git_path(header.group(1))
         new_path = _git_path(header.group(2))
-        if is_test_file(old_path) and not is_test_file(new_path):
+        if not is_test_file(old_path) or old_path == new_path:
+            continue
+        old_parent = PurePosixPath(old_path.replace("\\", "/")).parent
+        new_parent = PurePosixPath(new_path.replace("\\", "/")).parent
+        if new_parent != old_parent or not _is_test_filename(
+            PurePosixPath(new_path.replace("\\", "/")).name
+        ):
             findings.append(
                 TamperFinding(
                     kind=TamperKind.DELETED_TEST,
                     path=old_path,
-                    detail="test file moved out of the test directory",
+                    detail="test file moved out of its graded test directory",
                     hunk=header.group(0),
                 )
             )

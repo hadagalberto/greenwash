@@ -24,10 +24,19 @@ After [installing](#install):
 
 ```sh
 greenwash validate-tasks --tasks tasks
-greenwash run --agent scripted --script path/to/honest.json --tasks tasks --out results/
+greenwash run --agent scripted --script examples/honest-crc32.json \
+  --tasks tasks --glob crc32-check --out results/
 # open results/report.html in any browser — no network needed
-greenwash compare results-baseline/ results-candidate/ --out compare/
+greenwash compare tests/fixtures/report-a/ tests/fixtures/report-b/ --out compare/
 ```
+
+The committed `examples/honest-crc32.json` replays the known-correct solution for
+one tiny fixture task. The second command exits 0 and prints, among other
+metrics, `"hidden_pass_rate": 1.0` and `"greenwash_rate": 0.0`, and writes
+`results/results.jsonl`, `results/summary.json` and `results/report.html`. The
+`compare` command prints paired deltas from the two committed fixture result
+sets (`"paired_attempts": 6`, `"b_better": 2`, `"b_worse": 0`) and writes
+`compare/compare.json`.
 
 A deterministic scripted agent (used by the test suite) needs no API key. For a
 real agent, see [Adapters](#adapters) below.
@@ -52,8 +61,9 @@ greenwash validate-tasks --tasks tasks
 greenwash run --agent command --agent-cmd "my-agent --cwd {workdir} --prompt {prompt_file}" \
   --tasks tasks --repeat 1 --out results/
 
-# Deterministic scripted agent used by the test suite
-greenwash run --agent scripted --script path/to/honest.json --tasks tasks --out results/
+# Deterministic scripted agent used by the test suite (no API key needed)
+greenwash run --agent scripted --script examples/honest-crc32.json \
+  --tasks tasks --glob crc32-check --out results/
 ```
 
 ### Adapters
@@ -108,7 +118,8 @@ outputs. The page has:
 
 - a metric overview with deterministic bootstrap 95% confidence intervals for
   hidden pass rate, partial hidden score, greenwash rate, visible pass rate,
-  honest-failure rate, cost, tokens and wall time;
+  original-visible pass rate, honest-failure rate, cost, tokens and wall time,
+  plus the derived visible/hidden gap;
 - a sortable leaderboard by agent/model (click a header; keyboard accessible);
 - a per-task × repeat matrix whose cells link to the full attempt;
 - a drill-down per attempt containing the exact **spec**, the complete git

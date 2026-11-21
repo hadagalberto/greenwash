@@ -9,6 +9,7 @@ file with the same schema instead of editing the package.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -58,6 +59,10 @@ def _as_number(value: object, location: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise PriceTableError(f"{location} must be a number")
     number = float(value)
+    if not math.isfinite(number):
+        # Python's json accepts NaN/Infinity, but re-serialising them would emit
+        # non-standard JSON and poison every downstream summary and report.
+        raise PriceTableError(f"{location} must be a finite number")
     if number < 0:
         raise PriceTableError(f"{location} must not be negative")
     return number

@@ -4,11 +4,21 @@
 
 ```sh
 python -m pip install -e ".[dev]"
+python -m pip wheel . --no-deps -w dist/
 python -m ruff check .
 python -m ruff format --check .
 python -m mypy --strict
 python -m pytest
 python -m greenwash validate-tasks --tasks tasks
+```
+
+These are exactly the commands the GitHub Actions harness job runs on
+ubuntu, windows and macos. To try the CLI without an API key, use the committed
+scripted-agent example:
+
+```sh
+greenwash run --agent scripted --script examples/honest-crc32.json \
+  --tasks tasks --glob crc32-check --out results/
 ```
 
 Line endings are **LF** everywhere (enforced by `.gitattributes`). Do not commit
@@ -84,6 +94,8 @@ keeps commands portable across virtualenvs.
 - TypeScript tasks: tests under `tests/visible/` / `tests/hidden/` using
   `node:test` and `node:assert/strict`; commands start with `node --test`.
   The full suite may use vitest, but fixture tasks stay dependency-free.
+  `node:test` is Stable since Node 20 and `node --test` is the documented CLI
+  invocation: https://nodejs.org/api/test.html (fetched 2026-11-20).
 
 A visible test file that the agent skips, empties, deletes or rewrites is
 detected as tampering by the git-diff analysis, so keep visible tests meaningful.

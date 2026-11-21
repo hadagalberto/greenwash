@@ -37,6 +37,9 @@ def test_fixture_a_exact_rates_and_counts() -> None:
     assert overall["partial_hidden_score"] == pytest.approx(0.625)
     assert overall["visible_pass_rate"] == pytest.approx(5 / 6)
     assert overall["original_visible_pass_rate"] == pytest.approx(2 / 3)
+    # 5/6 visible minus 2/6 hidden = 3/6; bootstrap CI over the six paired gaps.
+    assert overall["visible_hidden_gap"] == pytest.approx(0.5)
+    assert overall["visible_hidden_gap_ci95"] == pytest.approx([1 / 6, 5 / 6])
     assert overall["greenwash_rate"] == pytest.approx(1 / 2)
     assert overall["honest_failure_rate"] == pytest.approx(1 / 6)
     assert overall["pass_at_k"] == pytest.approx({"1": 1 / 3, "2": 1 / 3})

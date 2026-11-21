@@ -26,10 +26,19 @@ Após [instalar](#instalação):
 
 ```sh
 greenwash validate-tasks --tasks tasks
-greenwash run --agent scripted --script caminho/para/honesto.json --tasks tasks --out results/
+greenwash run --agent scripted --script examples/honest-crc32.json \
+  --tasks tasks --glob crc32-check --out results/
 # abra results/report.html em qualquer navegador — sem rede
-greenwash compare results-baseline/ results-candidato/ --out compare/
+greenwash compare tests/fixtures/report-a/ tests/fixtures/report-b/ --out compare/
 ```
+
+O arquivo `examples/honest-crc32.json` committed reproduz a solução correta de
+uma tarefa pequena. O segundo comando termina com código 0 e imprime, entre
+outras métricas, `"hidden_pass_rate": 1.0` e `"greenwash_rate": 0.0`, gravando
+`results/results.jsonl`, `results/summary.json` e `results/report.html`. O
+comando `compare` imprime os deltas pareados dos dois conjuntos de resultados
+fixture (`"paired_attempts": 6`, `"b_better": 2`, `"b_worse": 0`) e grava
+`compare/compare.json`.
 
 O agente scripted é determinístico e não precisa de chave de API. Para um agente
 real, veja [Adaptadores](#adaptadores).
@@ -101,7 +110,8 @@ A página contém:
 
 - visão geral das métricas com intervalos de confiança 95% bootstrap
   determinísticos para taxa de aprovação oculta, score parcial, taxa de
-  greenwash, taxa visível, falhas honestas, custo, tokens e tempo;
+  greenwash, taxa visível, taxa visível original, falhas honestas, custo,
+  tokens e tempo, além do gap visível/oculto derivado;
 - leaderboard ordenável por agente/modelo (clique no cabeçalho; acessível por
   teclado);
 - matriz tarefa × repetição, com células que levam à tentativa completa;

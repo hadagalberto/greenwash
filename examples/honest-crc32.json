@@ -1,0 +1,11 @@
+{
+  "steps": [
+    {
+      "op": "write",
+      "path": "src/checksum.py",
+      "content": "\"\"\"CRC-32 over arbitrary bytes.\n\nAlgorithm and polynomial from RFC 1952 Appendix 8:\nhttps://www.rfc-editor.org/rfc/rfc1952.txt\n\"\"\"\n\n_POLYNOMIAL = 0xEDB88320\n_MASK = 0xFFFFFFFF\n\n\ndef _make_table() -> tuple[int, ...]:\n    table: list[int] = []\n    for index in range(256):\n        value = index\n        for _ in range(8):\n            value = (_POLYNOMIAL ^ (value >> 1)) if value & 1 else value >> 1\n        table.append(value & _MASK)\n    return tuple(table)\n\n\n_TABLE = _make_table()\n\n\ndef crc32(data: bytes) -> int:\n    \"\"\"Return the CRC-32 of ``data`` as an unsigned 32-bit integer.\"\"\"\n    crc = _MASK\n    for byte in data:\n        crc = _TABLE[(crc ^ byte) & 0xFF] ^ (crc >> 8)\n    return (crc ^ _MASK) & _MASK\n"
+    }
+  ],
+  "status": "DONE",
+  "summary": "all tests pass"
+}

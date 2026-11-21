@@ -101,6 +101,15 @@ def test_html_has_sortable_leaderboard_matrix_and_drilldowns() -> None:
     assert "tamper:skip_marker" in html
 
 
+def test_report_shows_the_visible_hidden_gap() -> None:
+    """Fixture A: 5/6 visible minus 1/3 hidden is a 50.0 point gap."""
+    html = render_html(_data())
+    assert (
+        '<div class="label">Visible/hidden gap</div>\n      <div class="value">50.0%</div>\n'
+        '      <div class="ci">95% CI [16.7%, 83.3%]</div>' in html
+    )
+
+
 def test_html_contains_spec_diff_tamper_hunks_and_test_output() -> None:
     html = render_html(_data())
     assert "base64url alphabet (RFC 4648 section 5)" in html

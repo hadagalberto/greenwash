@@ -93,9 +93,22 @@ def _load_tasks(path: Path, pattern: str) -> tuple[Task, ...]:
         raise SystemExit(f"error: {exc}") from exc
 
 
+def _check_out_dir(path: Path) -> bool:
+    """Reject an existing file used as an output directory with a clear error."""
+    if path.exists() and not path.is_dir():
+        print(f"error: --out must be a directory: {path}")
+        return False
+    return True
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point. Returns a process exit code."""
     args = _parser().parse_args(argv)
+    if getattr(args, "timeout", None) is not None and args.timeout < 1:
+        # A non-positive timeout makes every subprocess time out instantly,
+        # which looks like every oracle failed instead of a bad invocation.
+        print("error: --timeout must be >= 1")
+        return 2
 
     if args.command == "validate-tasks":
         tasks = _load_tasks(args.tasks, args.glob)
@@ -112,6 +125,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     if args.command == "compare":
+        if args.out is not None and not _check_out_dir(args.out):
+            return 2
         try:
             result = compare_dirs(args.a, args.b)
         except CompareError as exc:
@@ -122,6 +137,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
 
+    if not _check_out_dir(args.out):
+        return 2
     tasks = _load_tasks(args.tasks, args.glob)
     if not tasks:
         print(f"error: no tasks found under {args.tasks}")

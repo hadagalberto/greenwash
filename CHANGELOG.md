@@ -7,6 +7,12 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Milestone 8: line-by-line SPEC audit with a status checklist in
+  `docs/SPEC-CHECKLIST.md`; every CLI flag, output, test, CI job and README
+  example verified by running it. Added a runnable scripted-agent example
+  (`examples/honest-crc32.json`) used by both READMEs, a package build step in
+  CI, and an explicit visible/hidden gap metric (with bootstrap CI) in
+  `summary.json` and the HTML report.
 - Milestone 7: hostile review of the harness and all 40 tasks. Hand-derived
   vectors from the cited sources were compared to every hidden assertion; all
   traps, mutants and reference-import checks were re-verified. Findings and
@@ -40,6 +46,13 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Tamper analysis detects test files renamed out of their graded directory or
+  to a name the runner no longer collects, and no longer skips hunk lines that
+  begin with `--`.
+- Hostile inputs no longer crash the harness: non-finite prices, non-standard
+  JSON constants in results, non-positive `--timeout` and a file at `--out`
+  are all rejected with clear usage errors.
+- The HTML leaderboard sorts pass@k numerically (k=10 after k=2).
 - Tamper analysis now handles Windows and spaced git paths, case/type-only
   expected-value rewrites, base-prefixed tolerances, trailing comments and
   tests moved between files; it no longer reports removed skip markers.
