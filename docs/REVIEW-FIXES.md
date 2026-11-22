@@ -96,3 +96,56 @@ builtin-transcript form still exercises the real adapter path.
 - Existing assertions were only changed where they encoded a listed bug
   (adapter argv for aider/codex, builtin claim certainty, mutant distinctness,
   the golden compare test). Each carries a comment citing the finding.
+
+# Round 3 — independent review of 4bb1aa2 (score 4/10)
+
+Source: `m11.md`. Every regression test below was first run against the
+unmodified 4bb1aa2 tree and observed failing; expected values are hand-derived
+from SPEC.md, the task specs and explicit comments in the tests — never from
+the library under test. The two item-6 probes are the documented exception:
+they are rebuilt from inputs 132570c misclassifies and were observed failing
+there, as the finding requires.
+
+## Report table
+
+| # | Item | Regression test (`tests/test_m11_review_fixes.py` unless noted) | Fix summary | Status |
+| --- | --- | --- | --- | --- |
+| 1 | Hidden oracle rejected 7 correct references | `test_parametrized_python_node_ids_with_spaces_are_matched_exactly`, `test_runtime_built_typescript_test_names_are_matched_exactly`, `test_every_task_reference_passes_hidden_through_grade_attempt` | Python ids now come from the plugin's own `pytest_collection_modifyitems` hook (`item.nodeid`, spaces intact) via a collect-only pass; node ids come from `node:test`'s `test:start` events instead of a source regex; ids are compared exactly. `validate-tasks` now grades through the same `run_observed` oracle (`validate._run_oracle`). | PASS |
+| 2 | Implementation code forged the hidden pass | `test_python_module_patch_forgeries_are_detected[exec-sys-modules]`, `[os-alias-attribute-chain]`, `test_typescript_assert_patch_forgery_is_detected` | Nonce-named canary test must fail in every hidden run; `assert`/`assert.strict` and `Object.freeze` are locked by a `NODE_OPTIONS=--import` preload in **every** node child process; `implscan` now flags `exec`/`eval`/`compile`, `__dict__`/`__builtins__` subscripts, `sys`/`modules`/`_exit` attributes through any alias, and dynamic imports with non-literal specifiers. Any such finding or a forged canary forces `hidden.ok=False`. | PASS |
+| 3 | POSIX CI red: grandchild held the pipes | `test_leader_exit_does_not_wait_for_grandchild_holding_stdout` (plus the unchanged `test_m10_review_fixes.py::test_detached_grandchild_does_not_survive_run_shell`) | `_run_process` waits for the **leader** with `proc.wait(timeout)`, kills the whole group immediately afterwards, then drains pipes for a short deadline. `communicate()` is no longer the main wait. | PASS locally; POSIX CI job still unverified |
+| 4 | Unbounded child output (30 GB incident) | `test_child_output_capture_is_bounded` | Reader threads feed bounded head/tail buffers (1 MiB each per stream); exceeding the cap kills the process tree and marks the run failed with `output limit exceeded`. No `communicate()` accumulation remains on the local path. | PASS |
+| 5 | uuid evasions could not be verified | `test_uuid_evasions_fail_half_of_hidden_with_full_total` (regex `$` and bool `version`) | After item 1 the oracle accepts the reference, so each evasion now records a real assertion failure with the hand-derived hidden total of 23. | PASS |
+| 6 | Two regressions passed on the old commit | `tests/test_m10_review_fixes.py::test_final_message_is_not_dragged_down_by_earlier_tool_output_real_transcript`, `tests/test_m9_tamper.py::test_typescript_skip_option_not_zero_or_is_detected` | Both probes were rebuilt from inputs 132570c misclassifies: a `STATUS: DONE` followed by "not complete" in a summary, and a TS `{ skip: !0 }` option in a real workspace diff. | PASS |
+| 7 | Last fallback hint still won with no STATUS | `test_mixed_failure_and_success_hint_without_status_is_not_done`, corrected `tests/test_m9_claims_adapters.py::test_mixed_failure_and_success_hints_are_failure_not_done` | When a final message has both failure and success hints and no STATUS line, the fallback is FAILED (never DONE); the old DONE assertion was corrected with a finding-7 comment. | PASS |
+| 8 | Checklist hid the broken oracle | `docs/SPEC-CHECKLIST.md` row 30 | Row 30 was marked FAIL while items 1/2 were open and now records the fix; no green CI is claimed for rows 13/29. | PASS |
+
+## Notes on round 3
+
+- The 40-task reference sweep grades every `reference/` overlay through
+  `grade_attempt()` and asserts `hidden_pass`; this is the direct guard against
+  finding 1 returning.
+- The canary is generated **after** the agent's code is copied in, is written
+  into the harness-owned grading tree, and is excluded from pass/total counts.
+  A run that reports it as passed is rejected as forgery.
+- One pre-existing assertion was corrected: the fallback claims test that
+  expected DONE from mixed failure/success hints (finding 7), with a comment.
+- Green CI on all ten GitHub Actions jobs remains an external observation and
+  is not claimed here.
+
+## Final verification (round 3, Windows 11 / Python 3.15.2 / Node 26.13.0)
+
+- `python -m ruff check .` → All checks passed.
+- `python -m ruff format --check .` → 325 files already formatted.
+- `python -m mypy --strict` → Success: no issues found in 53 source files.
+- `python -m mypy --strict --platform linux src/greenwash/sandbox.py
+  src/greenwash/events.py src/greenwash/validate.py` → Success (POSIX paths
+  type-check without the Windows-only process-group constant).
+- `python -m greenwash validate-tasks --tasks tasks` → `validated 40 task(s):
+  all oracles passed` (exit 0).
+- `python -m pytest` → **341 passed in 3351.85s (55:51)**, coverage **93.46%**
+  (gate 90%).
+- Old-commit proof, run in detached worktrees of this repository:
+  `4bb1aa2` → all 10 non-slow `tests/test_m11_review_fixes.py` tests failed;
+  `132570c` → both item-6 tests failed. The worktrees were removed afterwards.
+- CI green on all ten GitHub Actions jobs is still **not** claimed; rows 13/29
+  of `docs/SPEC-CHECKLIST.md` remain honest about that.

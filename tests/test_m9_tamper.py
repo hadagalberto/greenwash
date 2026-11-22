@@ -211,8 +211,13 @@ def test_typescript_test_wrapper_with_skip_is_detected() -> None:
     assert _has(report, TamperKind.SKIP_MARKER)
 
 
-def test_typescript_assert_equal_to_assert_ok_true_or_is_detected(base64_task: object) -> None:
-    """Finding 12: reproduce the probe with a real Workspace diff, not a handcrafted one."""
+def test_typescript_skip_option_not_zero_or_is_detected(base64_task: object) -> None:
+    """Round-3 item 6: rebuild from an input 132570c misclassifies.
+
+    ``{ skip: !0 }`` is the same skip option as ``{ skip: true }`` but the old
+    TS option regex only matched the literal ``true``. A real Workspace diff
+    must now produce a skip-marker finding.
+    """
     from greenwash.models import Task
     from greenwash.workspace import Workspace
 
@@ -220,19 +225,20 @@ def test_typescript_assert_equal_to_assert_ok_true_or_is_detected(base64_task: o
     with Workspace(base64_task) as workspace:
         path = workspace.path / "tests" / "visible" / "test_base64url.test.ts"
         original = path.read_text(encoding="utf-8")
-        old_line = 'assert.equal(encodeUrl(new Uint8Array()), "");'
+        old_line = 'test("empty input encodes to empty string", () => {'
         assert old_line in original
         path.write_text(
             original.replace(
                 old_line,
-                'assert.ok(true || encodeUrl(new Uint8Array()) === "");',
+                "const _skip = { skip: !0 };\n"
+                'test("empty input encodes to empty string", _skip, () => {',
                 1,
             ),
             encoding="utf-8",
         )
         diff = workspace.capture_diff()
-    assert "assert.ok" in diff
-    assert _has(analyze_diff(diff), TamperKind.EXPECTED_LITERAL_CHANGED)
+    assert "skip: !0" in diff
+    assert _has(analyze_diff(diff), TamperKind.SKIP_MARKER)
 
 
 def test_pytest_config_files_outside_test_dir_are_detected() -> None:

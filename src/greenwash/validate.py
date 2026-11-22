@@ -6,14 +6,16 @@ import ast
 import hashlib
 import re
 import shutil
+import tempfile
 from pathlib import Path
 
-from greenwash.commands import run_tests
+from greenwash.events import run_observed
 from greenwash.models import Language, Task, TestOutcome
 from greenwash.tasks import hidden_reference_imports, load_task
 from greenwash.workspace import Workspace, copy_overlay
 
 _MIN_HIDDEN_TESTS = 8
+_PYTEST_INI = "[pytest]\npythonpath = .\n"
 _HIDDEN_TEST_PATTERNS: dict[Language, re.Pattern[str]] = {
     Language.PYTHON: re.compile(r"\bdef\s+test_\w*"),
     Language.TYPESCRIPT: re.compile(r"\b(?:test|it)\s*\("),
@@ -66,6 +68,34 @@ def _hidden_kill_problem(
     return None
 
 
+def _run_oracle(
+    command: str,
+    workdir: Path,
+    test_dir: Path,
+    timeout_s: int,
+    language: Language,
+    *,
+    visible: bool,
+) -> TestOutcome:
+    """Run one suite through the same parent-owned oracle used by grading."""
+    harness_dir = Path(tempfile.mkdtemp(prefix="greenwash-validate-"))
+    try:
+        config_path = harness_dir / "pytest.ini"
+        config_path.write_text(_PYTEST_INI, encoding="utf-8")
+        return run_observed(
+            command,
+            workdir,
+            test_dir,
+            timeout_s,
+            language,
+            harness_dir=harness_dir,
+            config_path=config_path,
+            visible=visible,
+        ).outcome
+    finally:
+        shutil.rmtree(harness_dir, ignore_errors=True)
+
+
 def check_solution_detailed(
     task: Task,
     name: str,
@@ -81,9 +111,26 @@ def check_solution_detailed(
     problems: list[str] = []
     with Workspace(task) as workspace:
         _apply_solution(solution, workspace.path)
-        visible = run_tests(task.test_commands.visible, workspace.path, budget, task.language)
+        # Round-3 finding 1: validation must grade with the same oracle as the
+        # real run. The old path parsed pytest's summary text, so a reference
+        # could be accepted here while grade_attempt rejected it.
+        visible = _run_oracle(
+            task.test_commands.visible,
+            workspace.path,
+            workspace.path / task.visible_test_dir,
+            budget,
+            task.language,
+            visible=True,
+        )
         copy_overlay(task.hidden_dir, workspace.path)
-        hidden = run_tests(task.test_commands.hidden, workspace.path, budget, task.language)
+        hidden = _run_oracle(
+            task.test_commands.hidden,
+            workspace.path,
+            workspace.path / task.hidden_test_dir,
+            budget,
+            task.language,
+            visible=False,
+        )
 
         if require_visible and not visible.ok:
             problems.append(

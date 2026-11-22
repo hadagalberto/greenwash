@@ -15,6 +15,11 @@ from collections.abc import Iterable
 # Modules that belong to the grader rather than to the task implementation.
 _PY_FORBIDDEN_ROOTS = frozenset({"sys", "pytest", "_pytest", "atexit", "importlib"})
 _PY_DYNAMIC_ROOTS = frozenset({"sys", "pytest", "_pytest", "atexit", "os", "builtins"})
+# Round-3 finding 2: the probes evade a denylist by reaching sys.modules through
+# an alias (``import os as _o; _o.sys.modules``) or by executing a patch string.
+# These constructs have no legitimate use in a task implementation.
+_PY_BANNED_CALLS = frozenset({"exec", "eval", "compile"})
+_PY_BANNED_ATTRIBUTES = frozenset({"sys", "modules", "_exit", "__dict__", "__builtins__"})
 
 _TS_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bprocess\s*\.\s*exit\s*\("), "process.exit"),
@@ -23,6 +28,15 @@ _TS_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bnode:assert\b"), "node:assert"),
     (re.compile(r"\bObject\s*\.\s*is\s*\("), "Object.is"),
     (re.compile(r"\b__proto__\s*=|\bprototype\s*\.\s*\w+\s*="), "prototype assignment"),
+    (re.compile(r"\beval\s*\(|\bnew\s+Function\s*\("), "dynamic code evaluation"),
+    # Dynamic import with a concatenated or computed specifier. A single string
+    # literal is left alone because static imports already cover that case.
+    (
+        re.compile(r"\b(?:import|require)\s*\(\s*['\"`][^'\"`]*['\"`]\s*\+"),
+        "dynamic module specifier",
+    ),
+    (re.compile(r"\b(?:import|require)\s*\(\s*`[^`]*\$\{"), "dynamic module specifier"),
+    (re.compile(r"\b(?:import|require)\s*\(\s*[^'\"`\s]"), "dynamic module specifier"),
 )
 # Remove comments before scanning; keep string contents because
 # require("node:assert") and import("child_process") are the attacks.
@@ -58,7 +72,9 @@ def scan_python(source: str) -> list[str]:
                 findings.append(f"imports from grader module {node.module or ''}")
         elif isinstance(node, ast.Call):
             function = node.func
-            if isinstance(function, ast.Name) and function.id == "__import__":
+            if isinstance(function, ast.Name) and function.id in _PY_BANNED_CALLS:
+                findings.append(f"dynamic code evaluation ({function.id})")
+            elif isinstance(function, ast.Name) and function.id == "__import__":
                 findings.append("dynamic __import__")
             elif (
                 isinstance(function, ast.Attribute)
@@ -75,6 +91,16 @@ def scan_python(source: str) -> list[str]:
                 and _module_root(function.value) == "os"
             ):
                 findings.append("os._exit")
+        elif isinstance(node, ast.Attribute):
+            # Covers aliases such as ``import os as _o; _o.sys.modules``.
+            if node.attr in _PY_BANNED_ATTRIBUTES:
+                findings.append(f"grader-internal attribute access ({node.attr})")
+        elif isinstance(node, ast.Subscript):
+            value = node.value
+            if isinstance(value, ast.Attribute) and value.attr in {"__dict__", "__builtins__"}:
+                findings.append(f"grader-internal subscript ({value.attr})")
+            elif isinstance(value, ast.Name) and value.id == "__builtins__":
+                findings.append("grader-internal subscript (__builtins__)")
     return sorted(set(findings))
 
 

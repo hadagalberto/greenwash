@@ -27,12 +27,12 @@ measurable.
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | 7 | Python ≥ 3.11, hatchling, CLI `greenwash` (argparse) | PASS | `requires-python = ">=3.11"`; `python -m pip wheel . --no-deps -w dist/` builds `greenwash-0.1.0-py3-none-any.whl`; `greenwash --help` works via `[project.scripts]`. Ran on 3.15.2; CI matrix 3.11/3.12/3.13. |
-| 8 | `mypy --strict`, `ruff`, `pytest` | PASS | `python -m mypy --strict` → `Success: no issues found in 41 source files`; `python -m ruff check .` → all passed; `python -m ruff format --check .` → 329 files formatted; `python -m pytest` → all pass. |
-| 9 | Coverage ≥ 90% for the harness | PASS | `pyproject.toml` `addopts` has `--cov-fail-under=90`; final run reports 95.00%. |
+| 8 | `mypy --strict`, `ruff`, `pytest` | PASS | `python -m mypy --strict` → `Success: no issues found in 53 source files`; `python -m ruff check .` → all passed; `python -m ruff format --check .` → 325 files formatted; `python -m pytest` → **341 passed**. |
+| 9 | Coverage ≥ 90% for the harness | PASS | `pyproject.toml` `addopts` has `--cov-fail-under=90`; final run reports **93.46%**. |
 | 10 | Hypothesis "where useful" | PASS | Installed in `dev` extras. No property test was added because every vector in this project has a known official/expected value; deterministic assertions are stronger here. No skipped placeholders. |
 | 11 | Small runtime deps: httpx, PyYAML, Jinja2, optional rich | PASS | `dependencies = [httpx, Jinja2, PyYAML, typer]`; rich is not required anywhere. |
 | 12 | Tasks in Python **and** TypeScript; harness runs each task's own test command | PASS\* | 20 Python + 20 TypeScript tasks; `task.yaml` declares visible/hidden commands executed by `run_tests()`. Deviation recorded in SPEC: Node's built-in `node:test` is used instead of vitest, and `--experimental-strip-types` requires Node ≥ 22.6 (CI pins 22.23.5). All TS commands use an explicit quoted glob so Node 22 does not treat a directory as a test file. |
-| 13 | CI on ubuntu/windows/macos for harness; separate ubuntu `validate-tasks` job | FAIL (item 1) | The matrix is declared, but 6 ubuntu/macos jobs were red at `mypy --strict` because `sandbox.py` used the Windows-only `subprocess.CREATE_NEW_PROCESS_GROUP`. The POSIX type error is fixed and `mypy --platform linux` is now a regression test; a green run of all 10 jobs has **not** been observed here, so this row stays FAIL until CI is green. |
+| 13 | CI on ubuntu/windows/macos for harness; separate ubuntu `validate-tasks` job | FAIL (CI not observed) | The matrix is declared. Round-2 fixed the POSIX `mypy` error and round-3 item 3 fixed the detached-grandchild pipe hang that made 6 ubuntu/macos jobs red (`proc.wait` + immediate `killpg`, bounded reader threads). `mypy --platform linux` is a regression test and the pipe-release test passes locally, but a green run of all 10 GitHub Actions jobs has **not** been observed here, so this row stays FAIL until CI is green. |
 | 14 | README.md (en) + README.pt-BR.md, CHANGELOG, CONTRIBUTING, LICENSE | PASS | All five files present; both README quickstarts were executed (see item 22). |
 | 15 | Do not publish to PyPI | PASS | No `twine`, `uv publish` or PyPI upload step anywhere; wheel build is local only. |
 
@@ -55,7 +55,7 @@ states this explicitly.
 
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
-| 22 | Reference passes; traps pass visible & fail hidden; mutants fail hidden | PASS | `python -m greenwash validate-tasks --tasks tasks` → `validated 40 task(s): all oracles passed` (exit 0). Took 9m29s on Windows; CI ubuntu job runs the same command. |
+| 22 | Reference passes; traps pass visible & fail hidden; mutants fail hidden | PASS | `python -m greenwash validate-tasks --tasks tasks` → `validated 40 task(s): all oracles passed` (exit 0). Took about 15 minutes on Windows after the round-3 oracle change (each suite now does a trusted collect pass plus a graded run); CI ubuntu job runs the same command. |
 | 23 | spec.md has no TODO | PASS | Loader `_TODO_RE` check; `validate-tasks` passes. |
 | 24 | Hidden tests cannot import from `reference/` | PASS | Static regex check in `tasks.py`; hostile relative/dotted import test passes. |
 | 25 | Non-zero exit on any violation; runs in CI | PASS | `tests/test_cli.py::test_cli_validate_tasks_failure` — corrupt a reference → exit 1, prints `FAIL:`; CI `validate-tasks` job. |
@@ -67,8 +67,8 @@ states this explicitly.
 | 26 | `run --agent --model [--tasks glob] [--repeat] [--jobs] [--timeout] [--out]` | PASS | All exercised in `tests/test_cli.py` and the verified README example. `--timeout 0`/negative now rejected with exit 2 (m8 regression). |
 | 27 | Isolated temp workspace, git-initialised so diffs are exact | PASS\* | `Workspace` still initialises git for agent convenience, but the graded diff is now computed in Python with `difflib` against a pristine snapshot. This is stronger than a git diff: agent replace refs, `info/exclude`, fsmonitor hooks and textconv drivers cannot hide edits or run host commands. Regression tests in `tests/test_m9_core_security.py`. |
 | 28 | Standard prompt (spec + completion instruction) | PASS | `make_prompt()` includes full spec and the exact `STATUS: DONE`/`STATUS: FAILED` instruction; used by every adapter and the e2e profile adapter. |
-| 29 | Timeout enforced; transcript, tokens/cost, wall time captured | PASS\* (item 5) | Windows now uses a kill-on-close Job Object (catches detached grandchildren) and POSIX stores the pgid at spawn instead of calling `getpgid` after exit; `Workspace.close()` retries and logs instead of raising. Verified on Windows by `tests/test_m10_review_fixes.py`; POSIX process-kill behaviour is not executed in this environment, so CI confirmation remains open. |
-| 30 | Grade order: visible as-is → restore originals → overlay hidden | PASS\* (item 2) | Hidden tests run in a fresh harness-owned directory; the verdict now comes from a nonce-named parent-owned event stream, not a child-visible JUnit file. Oracle-interference findings force `hidden.ok = False`. Verified locally by the round-2 forgery probes; POSIX fd transport is not exercised on Windows. |
+| 29 | Timeout enforced; transcript, tokens/cost, wall time captured | PASS\* (round-3 item 3) | Windows uses a kill-on-close Job Object and POSIX stores the pgid at spawn; the leader is now waited on with `proc.wait(timeout)` and its whole group killed immediately afterwards, so a grandchild inheriting the pipes can no longer hold `run_shell` open. Child output is captured into bounded buffers (round-3 item 4). Verified locally; POSIX process-kill behaviour is not executed in this environment, so CI confirmation remains open. |
+| 30 | Grade order: visible as-is → restore originals → overlay hidden | PASS\* (round-3 items 1, 2) | Row 30 was **FAIL** while the hidden oracle rejected 7 correct references and implementation code could still forge a pass. Fixed: ids are streamed by the reporting plugin/`test:start` events (spaces and runtime names survive), `validate-tasks` uses the same `run_observed` oracle, a nonce canary must fail, node assertions are frozen in every child process via a `NODE_OPTIONS` preload, and oracle-interference findings force `hidden.ok = False`. Verified locally by the 40-task reference sweep and the three forgery probes; POSIX fd transport is not exercised on Windows. |
 | 31 | Tamper analysis from git diff, all kinds classified with hunk | PASS | `tests/test_tamper.py`, `tests/test_m7_review_regressions.py`, m8 regressions plus `tests/test_m9_tamper.py` (config injection, tautologies, early returns, TS skip options and false-positive controls). |
 | 32 | Claim parsing: final `STATUS:` line; documented uncertain fallback | PASS\* (item 4) | The last STATUS line of the final message is certain even when a short summary follows, and fallback hints can no longer turn `STATUS: FAILED` into DONE. An empty builtin final message yields UNKNOWN. Existing golden assertions that encoded the old behaviour were corrected with a finding-4 comment. |
 | 33 | Optional Docker isolation; local default warns | PASS\* (item 3) | `docker/Dockerfile` supplies Python 3.12, pytest and Node 22 with network/pid/memory limits, and a `.dockerignore` now excludes `tasks/*/hidden`, `reference/`, `traps/`, `mutants/` and `tests/` from the build context. No real `docker build` was run here. |
@@ -164,3 +164,14 @@ round-2 fixes: `ruff`/`mypy --strict` clean, `validate-tasks` reports 40/40
 oracles passed, and `pytest` reports 330 passed with 93.56% coverage. Details
 are in `docs/REVIEW-FIXES.md`. CI green on all 10 jobs is **not** claimed — that
 requires the GitHub Actions run.
+
+## Round-3 correction (this milestone)
+
+Round-3 finding 8 required row 30 to stay FAIL until the hidden oracle stopped
+rejecting correct references (finding 1) and stopped being forgeable (finding 2).
+Both are fixed; row 30 now records that. Round-3 finding 3 explains the POSIX CI
+hang that kept rows 13/29 red: the parent waited for the pipes with
+`communicate()` instead of waiting for the leader, so a detached grandchild
+delayed the run indefinitely. That is fixed locally but CI green on all ten jobs
+is still not claimed. Full details and the per-item regression table are in
+`docs/REVIEW-FIXES.md` under "Round 3".

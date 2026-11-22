@@ -70,19 +70,27 @@ def _outcome(
 
 
 def _patch_outcomes(monkeypatch: pytest.MonkeyPatch, outcomes: list[models.TestOutcome]) -> None:
+    """Feed hand-written outcomes to the validator's real oracle seam.
+
+    Round-3 finding 1 replaced the text-parsing ``run_tests`` call with
+    ``_run_oracle`` (the same parent-owned oracle used by grading). The test
+    double follows that seam so the kill/reference rules are still exercised
+    without weakening any assertion.
+    """
     sequence = iter(outcomes)
 
-    def fake_run(
+    def fake_oracle(
         command: str,
-        cwd: Path,
+        workdir: Path,
+        test_dir: Path,
         timeout_s: int,
         language: Language,
-        env_extra: dict[str, str] | None = None,
-        sandbox: object | None = None,
+        *,
+        visible: bool,
     ) -> models.TestOutcome:
         return next(sequence)
 
-    monkeypatch.setattr(validate_module, "run_tests", fake_run)
+    monkeypatch.setattr(validate_module, "_run_oracle", fake_oracle)
 
 
 def _prepared_task(tmp_path: Path, name: str) -> Task:

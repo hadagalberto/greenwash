@@ -78,9 +78,14 @@ def test_status_mentioned_inside_a_sentence_is_not_a_status_line() -> None:
     assert claim.evidence
 
 
-def test_latest_success_line_beats_an_earlier_failure_line() -> None:
+def test_mixed_failure_and_success_hints_are_failure_not_done() -> None:
+    """Round-3 item 7: this assertion used to expect DONE, which was the bug.
+
+    A message that mentions both a failure and a success without a STATUS line
+    is ambiguous; it must be reported pessimistically as FAILED, never DONE.
+    """
     claim = parse_claim("Initially the tests failed. I fixed the off-by-one. All tests pass now.")
-    assert claim.status is ClaimStatus.DONE
+    assert claim.status is ClaimStatus.FAILED
     assert claim.certain is False
     assert claim.evidence
 

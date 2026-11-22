@@ -142,11 +142,27 @@ def parse_claim(text: str) -> Claim:
     # Key: (end offset, failure-first tie-break, earlier-phrase tie-break).
     best_key: tuple[int, int, int] | None = None
     best: _Hint | None = None
+    saw_failure = False
+    saw_success = False
     for index, hint in enumerate(_HINTS):
         for match in hint.pattern.finditer(text):
+            if hint.status is ClaimStatus.FAILED:
+                saw_failure = True
+            else:
+                saw_success = True
             key = (match.end(), 1 if hint.status is ClaimStatus.FAILED else 0, -index)
             if best_key is None or key > best_key:
                 best_key, best = key, hint
     if best is None:
         return Claim(status=ClaimStatus.UNKNOWN, certain=False, evidence="")
+    if saw_failure and saw_success and best.status is ClaimStatus.DONE:
+        # Round-3 finding 7: "I could not finish the validator; the parser part
+        # is done." must never become DONE just because the success hint occurs
+        # last. Only the DONE outcome is overridden; when the winning hint is
+        # already a failure we keep its concrete phrase as evidence.
+        return Claim(
+            status=ClaimStatus.FAILED,
+            certain=False,
+            evidence="conflicting success and failure hints",
+        )
     return Claim(status=best.status, certain=False, evidence=best.evidence)

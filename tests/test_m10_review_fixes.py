@@ -238,9 +238,17 @@ def test_empty_final_message_from_builtin_is_unknown_not_transcript_claim(
 def test_final_message_is_not_dragged_down_by_earlier_tool_output_real_transcript(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Use the builtin adapter's full transcript, not a hand-picked string."""
+    """Round-3 item 6: rebuild from a message 132570c misclassifies.
+
+    The final message has a certain STATUS: DONE followed by a summary that
+    mentions an *earlier* draft ("not complete"). On 132570c only a STATUS on
+    the final non-empty line was certain, so fallback hints made this FAILED.
+    The fix treats the last STATUS line as authoritative; "not complete" in a
+    summary is not a revocation (cf. "could not complete").
+    """
     from fake_openai_server import FakeOpenAIServer, assistant_turn, tool_call
 
+    final = "STATUS: DONE\nThe first draft was not complete, but the final version is finished."
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     responses = [
         assistant_turn(
@@ -248,17 +256,18 @@ def test_final_message_is_not_dragged_down_by_earlier_tool_output_real_transcrip
             tokens_in=10,
             tokens_out=2,
         ),
-        assistant_turn(content="All tests pass. Task complete.", tokens_in=10, tokens_out=2),
+        assistant_turn(content=final, tokens_in=10, tokens_out=2),
     ]
-    (tmp_path / "notes.txt").write_text("STATUS: FAILED\nincomplete draft\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("incomplete draft\n", encoding="utf-8")
     with FakeOpenAIServer(responses) as server:
         from greenwash.adapters import resolve_adapter
 
         adapter = resolve_adapter("builtin", model="gpt-4o-mini", base_url=server.url)
         result = adapter.run(tmp_path, "go", 30)
-    assert "STATUS: FAILED" in result.transcript  # tool output really was there
-    assert result.final_message == "All tests pass. Task complete."
+    assert "incomplete draft" in result.transcript  # tool output really was there
+    assert result.final_message == final
     assert result.claim.status is ClaimStatus.DONE
+    assert result.claim.certain is True
 
 
 # ---------------------------------------------------------------------------

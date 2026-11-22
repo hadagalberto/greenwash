@@ -13,6 +13,8 @@ import os
 import shutil
 import signal
 import subprocess
+import threading
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -24,6 +26,10 @@ _DOCKER_TIMEOUT_GRACE_S = 10
 _KILL_TIMEOUT_S = 5
 _PIPE_DRAIN_TIMEOUT_S = 2
 _DOCKER_KILL_TIMEOUT_S = 5
+# Round-3 finding 4: a child that prints without end must not be able to grow
+# the harness process. Keep the first and last MiB of each stream.
+_OUTPUT_HEAD_BYTES = 1024 * 1024
+_OUTPUT_TAIL_BYTES = 1024 * 1024
 _BASE_ENV: dict[str, str] = {
     "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONIOENCODING": "utf-8",
@@ -156,7 +162,7 @@ def _create_job() -> int | None:
     return int(handle)
 
 
-def _assign_job(job: int | None, proc: subprocess.Popen[str]) -> None:
+def _assign_job(job: int | None, proc: subprocess.Popen[bytes]) -> None:
     if job is None or os.name != "nt":
         return
     handle = getattr(proc, "_handle", None)
@@ -204,6 +210,60 @@ def _kill_process_tree(pid: int, pgid: int | None = None, job: int | None = None
             killpg(pgid, sigkill)
 
 
+class _BoundedBuffer:
+    """Keep a bounded head and tail of a byte stream.
+
+    Reading a child's pipe into an unbounded ``communicate()`` buffer is how a
+    looping printer grows the harness without limit. This buffer keeps at most
+    ``_OUTPUT_HEAD_BYTES`` from the start and ``_OUTPUT_TAIL_BYTES`` from the
+    end and reports when the cap was exceeded.
+    """
+
+    def __init__(self, head_limit: int, tail_limit: int) -> None:
+        self._head_limit = head_limit
+        self._tail_limit = tail_limit
+        self._head = bytearray()
+        self._tail = bytearray()
+        self.total = 0
+        self.exceeded = False
+
+    def feed(self, chunk: bytes) -> bool:
+        self.total += len(chunk)
+        if len(self._head) < self._head_limit:
+            take = min(len(chunk), self._head_limit - len(self._head))
+            self._head.extend(chunk[:take])
+            chunk = chunk[take:]
+        if chunk:
+            self._tail.extend(chunk)
+            if len(self._tail) > self._tail_limit:
+                del self._tail[: len(self._tail) - self._tail_limit]
+        if self.total > self._head_limit + self._tail_limit:
+            self.exceeded = True
+        return self.exceeded
+
+    def text(self) -> str:
+        head = bytes(self._head).decode("utf-8", errors="replace")
+        if not self._tail:
+            return head
+        tail = bytes(self._tail).decode("utf-8", errors="replace")
+        return f"{head}\n... [output truncated] ...\n{tail}"
+
+
+def _pump(pipe: Any, buffer: _BoundedBuffer, on_limit: Any) -> None:
+    try:
+        while True:
+            chunk = pipe.read(65536)
+            if not chunk:
+                break
+            if buffer.feed(chunk):
+                on_limit()
+    except (OSError, ValueError):
+        pass
+    finally:
+        with contextlib.suppress(OSError):
+            pipe.close()
+
+
 def _run_process(
     argv_or_command: str | Sequence[str],
     shell: bool,
@@ -217,11 +277,12 @@ def _run_process(
 
     ``subprocess.run(timeout=...)`` kills only the direct child; grandchildren
     that inherited the stdout/stderr pipes keep ``communicate()`` blocked.
-    Killing the whole group (tree on Windows) before draining the pipes makes
-    the timeout real instead of best-effort.
+    Round-3 findings 3 and 4 therefore replace ``communicate()`` with reader
+    threads: wait for the leader first, kill its whole group as soon as it
+    exits, and only then drain the pipes for a short deadline. Output is kept
+    in bounded head/tail buffers and a child that exceeds the cap is killed.
     """
     new_session = os.name != "nt"
-    job: int | None = None
     try:
         proc = subprocess.Popen(
             argv_or_command,
@@ -231,9 +292,7 @@ def _run_process(
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+            text=False,
             creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
             if not new_session
             else 0,
@@ -248,37 +307,96 @@ def _run_process(
     # start_new_session makes the child the leader of a new group before any
     # Python code runs, so the id is known without a later getpgid() call.
     pgid: int | None = proc.pid if new_session else None
+    job_closed = False
+    terminate_lock = threading.Lock()
 
-    stdout: str = ""
-    stderr: str = ""
+    def terminate() -> None:
+        nonlocal job_closed
+        _kill_process_tree(proc.pid, pgid, job)
+        with terminate_lock:
+            if not job_closed:
+                # Closing the job handle kills anything that survived taskkill,
+                # such as a grandchild started with DETACHED_PROCESS (finding 5).
+                _close_job(job)
+                job_closed = True
+
+    stdout_buffer = _BoundedBuffer(_OUTPUT_HEAD_BYTES, _OUTPUT_TAIL_BYTES)
+    stderr_buffer = _BoundedBuffer(_OUTPUT_HEAD_BYTES, _OUTPUT_TAIL_BYTES)
+    limit_hit = threading.Event()
+
+    def on_limit() -> None:
+        if not limit_hit.is_set():
+            limit_hit.set()
+            terminate()
+
+    readers: list[threading.Thread] = []
+    for pipe, buffer in ((proc.stdout, stdout_buffer), (proc.stderr, stderr_buffer)):
+        if pipe is None:
+            continue
+        reader = threading.Thread(target=_pump, args=(pipe, buffer, on_limit), daemon=True)
+        reader.start()
+        readers.append(reader)
+
+    stdin_writer: threading.Thread | None = None
+    if input_text is not None and proc.stdin is not None:
+        encoded = input_text.encode("utf-8")
+
+        def write_stdin() -> None:
+            assert proc.stdin is not None
+            try:
+                proc.stdin.write(encoded)
+                proc.stdin.flush()
+            except (BrokenPipeError, OSError, ValueError):
+                pass
+            finally:
+                with contextlib.suppress(OSError, ValueError):
+                    proc.stdin.close()
+
+        stdin_writer = threading.Thread(target=write_stdin, daemon=True)
+        stdin_writer.start()
+    elif proc.stdin is not None:
+        with contextlib.suppress(OSError):
+            proc.stdin.close()
+
     timed_out = False
     try:
-        stdout, stderr = proc.communicate(input=input_text, timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        timed_out = True
-        stdout = _text(exc.stdout)
-        stderr = _text(exc.stderr)
-        _kill_process_tree(proc.pid, pgid, job)
         try:
-            stdout, stderr = proc.communicate(timeout=_PIPE_DRAIN_TIMEOUT_S)
-        except subprocess.TimeoutExpired as second:
-            # Last resort: kill again and keep whatever bytes we already have.
-            _kill_process_tree(proc.pid, pgid, job)
-            stdout = stdout or _text(second.stdout)
-            stderr = stderr or _text(second.stderr)
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            terminate()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=_KILL_TIMEOUT_S)
+        # The leader is gone (or was killed): no descendant may keep running or
+        # hold the pipes open.
+        terminate()
+        deadline = time.monotonic() + _PIPE_DRAIN_TIMEOUT_S
+        for reader in readers:
+            reader.join(max(0.0, deadline - time.monotonic()))
+        if any(reader.is_alive() for reader in readers):
+            terminate()
+            for reader in readers:
+                reader.join(0.5)
     finally:
-        # No process (or descendant holding a pipe) may outlive a run.
-        _kill_process_tree(proc.pid, pgid, job)
-        # Closing the job handle kills anything that survived taskkill, such as
-        # a grandchild started with DETACHED_PROCESS (finding 5).
-        _close_job(job)
-        if proc.stdout is not None:
-            proc.stdout.close()
-        if proc.stderr is not None:
-            proc.stderr.close()
+        terminate()
+        if stdin_writer is not None:
+            stdin_writer.join(1)
+        for pipe in (proc.stdout, proc.stderr):
+            if pipe is not None:
+                with contextlib.suppress(OSError):
+                    pipe.close()
+        if proc.returncode is None:
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=_KILL_TIMEOUT_S)
+
+    stdout = stdout_buffer.text()
+    stderr = stderr_buffer.text()
     returncode = proc.returncode if proc.returncode is not None else 1
     if timed_out:
         returncode = 1
+    if limit_hit.is_set():
+        returncode = 1
+        stderr = (stderr + "\noutput limit exceeded").strip()
     return CommandOutput(stdout, stderr, returncode, timed_out)
 
 
